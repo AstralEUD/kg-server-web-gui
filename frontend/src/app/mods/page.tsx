@@ -72,6 +72,16 @@ export default function ModsPage() {
         setLoading(false)
     }
 
+    const refreshAll = async () => {
+        setLoading(true)
+        await Promise.all([
+            fetchInstalledMods(),
+            fetchConfig(),
+            fetchCollections()
+        ])
+        setLoading(false)
+    }
+
     // Config Mods
     const fetchConfig = async () => {
         try {
@@ -260,6 +270,86 @@ export default function ModsPage() {
         saveEnabledModsToConfig(newMods)
     }
 
+    const [syncing, setSyncing] = useState(false)
+    const syncEnabledToCollection = async () => {
+        if (!enabledMods || enabledMods.length === 0) {
+            alert("동기화할 활성화된 모드가 없습니다.")
+            return
+        }
+
+        setSyncing(true)
+        try {
+            // 1. Get current collections
+            const colRes = await fetch("http://localhost:3000/api/collections", { credentials: "include" })
+            const collections = await colRes.json()
+
+            let targetCollection = collections?.[0]
+            if (!targetCollection) {
+                // Create default collection if none exists
+                const createRes = await fetch("http://localhost:3000/api/collections", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({ name: "My Collection", items: [] })
+                })
+                targetCollection = await createRes.json()
+            }
+
+            const existingItems = targetCollection.items || []
+            const existingIds = new Set(existingItems.map((item: any) => item.modId))
+
+            // 2. Identify new mods that need enrichment
+            const newMods = enabledMods.filter(m => !existingIds.has(m.modId))
+
+            if (newMods.length === 0) {
+                alert("모든 활성화된 모드가 이미 컬렉션에 등록되어 있습니다.")
+                setSyncing(false)
+                return
+            }
+
+            // 3. Enrich only NEW mods
+            const enrichRes = await fetch("http://localhost:3000/api/config/enrich", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ mods: newMods })
+            })
+
+            if (!enrichRes.ok) throw new Error("Enrich failed")
+            const enrichData = await enrichRes.json()
+
+            // 4. Transform enriched mods to collection items
+            const newItems = enrichData.mods.map((m: any) => ({
+                modId: m.modId,
+                name: m.name,
+                version: "",
+                deps: m.dependencies || []
+            }))
+
+            // 5. Merge and save
+            const mergedItems = [...existingItems, ...newItems]
+
+            await fetch("http://localhost:3000/api/collections", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({
+                    id: targetCollection.id,
+                    name: targetCollection.name,
+                    items: mergedItems
+                })
+            })
+
+            await fetchCollections() // Refresh local list
+            alert(`동기화 완료!\n- 활성화된 모드 중 새 모드 ${newItems.length}개가 컬렉션에 추가되었습니다.`)
+
+        } catch (e) {
+            console.error(e)
+            alert("동기화 실패")
+        }
+        setSyncing(false)
+    }
+
     const toggleCollectionSort = (key: 'name' | 'size') => {
         if (collectionSortKey === key) {
             setCollectionSortOrder(collectionSortOrder === 'asc' ? 'desc' : 'asc')
@@ -416,7 +506,7 @@ export default function ModsPage() {
                         <p className="text-zinc-400 mt-1">워크샵 모드 검색, 컬렉션 관리 및 서버 적용</p>
                     </div>
                     <div className="flex gap-2">
-                        <Button variant="outline" onClick={fetchInstalledMods}><RefreshCw className="w-4 h-4 mr-2" /> 새로고침</Button>
+                        <Button variant="outline" onClick={refreshAll} disabled={loading}><RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} /> 새로고침</Button>
                     </div>
                 </div>
 
@@ -554,7 +644,18 @@ export default function ModsPage() {
                     {/* Enabled Tab */}
                     <TabsContent value="enabled">
                         <Card className="bg-zinc-800/50 border-zinc-700">
-                            <CardHeader><CardTitle>서버 설정 (Enabled Mods)</CardTitle><CardDescription>server.json에 저장된 실제 로드될 모드 목록 (위쪽이 먼저 로드됨)</CardDescription></CardHeader>
+                            <CardHeader>
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <CardTitle>서버 설정 (Enabled Mods)</CardTitle>
+                                        <CardDescription>server.json에 저장된 실제 로드될 모드 목록 (위쪽이 먼저 로드됨)</CardDescription>
+                                    </div>
+                                    <Button size="sm" variant="outline" className="text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10" onClick={syncEnabledToCollection} disabled={syncing}>
+                                        {syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                                        현재 목록을 모음집에 동기화
+                                    </Button>
+                                </div>
+                            </CardHeader>
                             <CardContent>
                                 <Table>
                                     <TableHeader><TableRow><TableHead>목록</TableHead><TableHead>ID</TableHead><TableHead>용량</TableHead><TableHead>의존성</TableHead><TableHead className="text-right">순서 / 관리</TableHead></TableRow></TableHeader>
