@@ -22,6 +22,7 @@ interface MissionHeader {
 export default function ScenariosPage() {
     const [scenarios, setScenarios] = useState<Scenario[]>([])
     const [missionHeader, setMissionHeader] = useState<MissionHeader>({ mission: "" })
+    const [rawMissionHeader, setRawMissionHeader] = useState("{}")
     const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
     const [copied, setCopied] = useState("")
@@ -52,6 +53,7 @@ export default function ScenariosPage() {
                 const data = await res.json()
                 if (data.missionHeader) {
                     setMissionHeader(data.missionHeader)
+                    setRawMissionHeader(JSON.stringify(data.missionHeader, null, 4))
                 }
             }
         } catch (e) {
@@ -62,13 +64,23 @@ export default function ScenariosPage() {
     const saveMissionHeader = async () => {
         setSaving(true)
         try {
+            // Validate JSON
+            let parsedHeader;
+            try {
+                parsedHeader = JSON.parse(rawMissionHeader)
+            } catch (e) {
+                alert("유효하지 않은 JSON 형식입니다. 문법을 확인해주세요.")
+                setSaving(false)
+                return
+            }
+
             // First fetch current config to preserve other fields
             const configRes = await fetch("http://localhost:3000/api/config", { credentials: "include" })
             if (!configRes.ok) throw new Error("Config load failed")
             const config = await configRes.json()
 
             // Update missionHeader
-            config.missionHeader = missionHeader
+            config.missionHeader = parsedHeader
 
             // Save back
             await fetch("http://localhost:3000/api/config", {
@@ -77,6 +89,9 @@ export default function ScenariosPage() {
                 credentials: "include",
                 body: JSON.stringify(config)
             })
+
+            // Update local parsed state
+            setMissionHeader(parsedHeader)
             alert("미션 헤더가 저장되었습니다.")
         } catch (e) {
             console.error("저장 실패", e)
@@ -162,45 +177,23 @@ export default function ScenariosPage() {
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="space-y-2">
-                                <Label>Select Mission</Label>
-                                <Select
-                                    value={missionHeader.mission}
-                                    onValueChange={(v) => setMissionHeader({ mission: v })}
-                                >
-                                    <SelectTrigger className="bg-zinc-900 border-zinc-700">
-                                        <SelectValue placeholder="시나리오 선택..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {scenarios.map(s => (
-                                            <SelectItem key={s.scenarioId} value={s.scenarioId}>
-                                                {s.name} ({s.scenarioId})
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Manual Entry (Editable)</Label>
-                                <Input
-                                    value={missionHeader.mission}
-                                    onChange={(e) => setMissionHeader({ ...missionHeader, mission: e.target.value })}
-                                    className="bg-zinc-900 border-zinc-700 font-mono text-sm"
-                                    placeholder="{Guid}Missions/MissionName.conf"
+                                <Label className="flex justify-between">
+                                    <span>Raw JSON Configuration</span>
+                                    <span className="text-xs text-zinc-500 font-mono">missionHeader: {"{ ... }"}</span>
+                                </Label>
+                                <textarea
+                                    className="w-full h-[200px] bg-zinc-900 border border-zinc-700 rounded-md p-4 font-mono text-sm text-zinc-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 resize-none"
+                                    value={rawMissionHeader}
+                                    onChange={(e) => setRawMissionHeader(e.target.value)}
                                 />
                                 <p className="text-xs text-zinc-500">
-                                    직접 입력하거나 목록에서 선택하세요.
-                                </p>
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Override Mission Name (Optional)</Label>
-                                <Input
-                                    value={missionHeader.name || ""}
-                                    onChange={(e) => setMissionHeader({ ...missionHeader, name: e.target.value })}
-                                    className="bg-zinc-900 border-zinc-700"
-                                    placeholder="Custom Server Name..."
-                                />
-                                <p className="text-xs text-zinc-500">
-                                    서버 브라우저에 표시될 이름을 덮어씁니다.
+                                    JSON 형식을 직접 편집합니다. 예:
+                                    <pre className="mt-1 bg-zinc-950 p-2 rounded text-xs text-zinc-400">
+                                        {`{
+  "mission": "{Guid}Missions/Name.conf",
+  "name": "Server Name Override"
+}`}
+                                    </pre>
                                 </p>
                             </div>
                         </CardContent>

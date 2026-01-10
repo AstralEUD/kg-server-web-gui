@@ -10,6 +10,7 @@ import (
 
 	"github.com/astral/kg-server-web-gui/internal/agent"
 	"github.com/astral/kg-server-web-gui/internal/logs"
+	"github.com/astral/kg-server-web-gui/internal/settings"
 )
 
 // ServerInstance represents a single server instance
@@ -27,17 +28,19 @@ type ServerInstance struct {
 
 // InstanceManager manages multiple server instances
 type InstanceManager struct {
-	mu        sync.RWMutex
-	instances map[string]*ServerInstance
-	monitors  map[string]*agent.ProcessMonitor
-	dataPath  string
+	mu          sync.RWMutex
+	instances   map[string]*ServerInstance
+	monitors    map[string]*agent.ProcessMonitor
+	dataPath    string
+	settingsMgr *settings.SettingsManager
 }
 
-func NewInstanceManager(dataPath string) *InstanceManager {
+func NewInstanceManager(dataPath string, sm *settings.SettingsManager) *InstanceManager {
 	im := &InstanceManager{
-		instances: make(map[string]*ServerInstance),
-		monitors:  make(map[string]*agent.ProcessMonitor),
-		dataPath:  dataPath,
+		instances:   make(map[string]*ServerInstance),
+		monitors:    make(map[string]*agent.ProcessMonitor),
+		dataPath:    dataPath,
+		settingsMgr: sm,
 	}
 	im.Load()
 	return im
@@ -170,6 +173,17 @@ func (im *InstanceManager) Start(id string, args []string) error {
 	monitor := im.monitors[id]
 	if monitor == nil {
 		return fmt.Errorf("서버 모니터를 찾을 수 없습니다: %s", id)
+	}
+
+	if inst.Path == "" {
+		// Fallback to global settings
+		if im.settingsMgr != nil {
+			settings := im.settingsMgr.Get()
+			if settings.ServerPath != "" {
+				inst.Path = settings.ServerPath
+				// Note: We don't save this to json to keep it dynamic if settings change
+			}
+		}
 	}
 
 	if inst.Path == "" {

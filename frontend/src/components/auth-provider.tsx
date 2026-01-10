@@ -45,5 +45,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         )
     }
 
+    if (!isAuthenticated) return null
+
     return <>{children}</>
 }

@@ -15,13 +15,14 @@ interface Preset {
     description?: string
     config?: any
     mods?: { modId: string; name: string }[]
+    collectionItems?: any[]
     scenarioMappings?: { slot: number; scenarioId: string; name: string }[]
     activeScenario?: string
     createdAt?: string
     updatedAt?: string
 }
 
-export default function PresetsPage() {
+export default function ProfilesPage() {
     const [presets, setPresets] = useState<Preset[]>([])
     const [loading, setLoading] = useState(false)
     const [createOpen, setCreateOpen] = useState(false)
@@ -51,6 +52,16 @@ export default function PresetsPage() {
         if (!newPresetName.trim()) return
         setProcessing(true)
         try {
+            // Fetch current state
+            const configRes = await fetch("http://localhost:3000/api/config", { credentials: "include" })
+            const collectionsRes = await fetch("http://localhost:3000/api/collections", { credentials: "include" })
+
+            if (!configRes.ok || !collectionsRes.ok) throw new Error("State fetch failed")
+
+            const config = await configRes.json()
+            const collections = await collectionsRes.json()
+            const currentCollection = collections.length > 0 ? collections[0].items : []
+
             const res = await fetch("http://localhost:3000/api/presets", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -58,7 +69,9 @@ export default function PresetsPage() {
                 body: JSON.stringify({
                     name: newPresetName,
                     description: newPresetDesc,
-                    // Default empty/current config logic would ideally go here or on backend
+                    config: config,
+                    mods: config.game?.mods || [],
+                    collectionItems: currentCollection
                 })
             })
             if (res.ok) {
@@ -68,13 +81,13 @@ export default function PresetsPage() {
                 fetchPresets()
             }
         } catch (e) {
-            console.error("프리셋 생성 실패", e)
+            console.error("프로필 생성 실패", e)
         }
         setProcessing(false)
     }
 
     const deletePreset = async (id: string) => {
-        if (!confirm("정말 이 프리셋을 삭제하시겠습니까?")) return
+        if (!confirm("정말 이 프로필을 삭제하시겠습니까?")) return
         try {
             await fetch(`http://localhost:3000/api/presets/${id}`, {
                 method: "DELETE",
@@ -87,24 +100,18 @@ export default function PresetsPage() {
     }
 
     const applyPreset = async (preset: Preset) => {
-        if (!confirm(`'${preset.name}' 프리셋을 적용하시겠습니까?\n현재 설정이 덮어씌워집니다.`)) return
+        if (!confirm(`'${preset.name}' 프로필을 적용하시겠습니까?\n현재 서버 설정과 모음집이 덮어씌워집니다.`)) return
         try {
             const res = await fetch(`http://localhost:3000/api/presets/${preset.id}/apply`, {
                 method: "POST",
                 credentials: "include"
             })
             if (res.ok) {
-                alert("프리셋이 적용되었습니다.")
+                alert("프로필이 적용되었습니다.")
             }
         } catch (e) {
             console.error("프리셋 적용 실패", e)
         }
-    }
-
-    const saveCurrentAsPreset = async () => {
-        // Implementation for saving current state as a new preset or updating existing
-        // This usually requires fetching current config/mods/scenarios first then posting
-        alert("현재 설정을 새 프리셋으로 저장 기능은 준비 중입니다.")
     }
 
     return (
@@ -113,22 +120,22 @@ export default function PresetsPage() {
                 <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-amber-400 to-orange-500">
-                            프리셋 관리
+                            서버 프로필 (Profiles)
                         </h1>
-                        <p className="text-zinc-400 mt-1">서버 설정을 저장하고 빠르게 전환하세요</p>
+                        <p className="text-zinc-400 mt-1">서버 설정, 모드, 컬렉션을 포함한 전체 상태를 저장하고 전환합니다</p>
                     </div>
                     <div className="flex gap-2">
                         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                             <DialogTrigger asChild>
                                 <Button className="gap-2 bg-gradient-to-r from-amber-500 to-orange-600">
-                                    <Plus className="w-4 h-4" /> 새 프리셋
+                                    <Plus className="w-4 h-4" /> 새 프로필 저장
                                 </Button>
                             </DialogTrigger>
                             <DialogContent className="bg-zinc-800 border-zinc-700 text-white">
                                 <DialogHeader>
-                                    <DialogTitle>새 프리셋 생성</DialogTitle>
+                                    <DialogTitle>새 프로필 생성</DialogTitle>
                                     <DialogDescription>
-                                        새로운 프리셋의 이름과 설명을 입력하세요.
+                                        현재 서버 설정과 모드 리스트를 프로필로 저장합니다.
                                     </DialogDescription>
                                 </DialogHeader>
                                 <div className="space-y-4 py-4">
@@ -137,7 +144,7 @@ export default function PresetsPage() {
                                         <Input
                                             value={newPresetName}
                                             onChange={e => setNewPresetName(e.target.value)}
-                                            placeholder="예: 바닐라 모드"
+                                            placeholder="예: 바닐라 모드, 하드코어 설정"
                                             className="bg-zinc-900 border-zinc-700"
                                         />
                                     </div>
@@ -154,7 +161,7 @@ export default function PresetsPage() {
                                 <DialogFooter>
                                     <Button variant="ghost" onClick={() => setCreateOpen(false)}>취소</Button>
                                     <Button onClick={createPreset} disabled={!newPresetName || processing}>
-                                        {processing ? <Loader2 className="w-4 h-4 animate-spin" /> : "생성"}
+                                        {processing ? <Loader2 className="w-4 h-4 animate-spin" /> : "저장"}
                                     </Button>
                                 </DialogFooter>
                             </DialogContent>
@@ -180,12 +187,12 @@ export default function PresetsPage() {
                             <CardContent className="space-y-4">
                                 <div className="space-y-2 text-sm text-zinc-400">
                                     <div className="flex justify-between">
-                                        <span>포함된 모드:</span>
+                                        <span>Config 모드 (Enabled):</span>
                                         <span className="text-white bg-zinc-700 px-1.5 rounded">{preset.mods?.length || 0}개</span>
                                     </div>
                                     <div className="flex justify-between">
-                                        <span>시나리오 매핑:</span>
-                                        <span className="text-white bg-zinc-700 px-1.5 rounded">{preset.scenarioMappings?.length || 0}개</span>
+                                        <span>내 모음집 (Collection):</span>
+                                        <span className="text-white bg-zinc-700 px-1.5 rounded">{preset.collectionItems?.length || 0}개</span>
                                     </div>
                                     <div className="flex justify-between items-center pt-2 border-t border-zinc-700/50">
                                         <span>생성일:</span>
@@ -193,7 +200,7 @@ export default function PresetsPage() {
                                     </div>
                                 </div>
                                 <Button className="w-full gap-2" variant="outline" onClick={() => applyPreset(preset)}>
-                                    <Play className="w-4 h-4" /> 이 프리셋 적용
+                                    <Play className="w-4 h-4" /> 이 프로필 적용 (Load)
                                 </Button>
                             </CardContent>
                         </Card>
@@ -202,8 +209,8 @@ export default function PresetsPage() {
                     {presets.length === 0 && !loading && (
                         <div className="col-span-full flex flex-col items-center justify-center py-16 text-zinc-500 border-2 border-dashed border-zinc-800 rounded-xl">
                             <Layers className="w-12 h-12 mb-4 opacity-20" />
-                            <p className="text-lg">저장된 프리셋이 없습니다</p>
-                            <p className="text-sm">새 프리셋을 만들어 설정을 저장해보세요</p>
+                            <p className="text-lg">저장된 프로필이 없습니다</p>
+                            <p className="text-sm">현재 상태를 새 프로필로 저장해보세요</p>
                         </div>
                     )}
                 </div>

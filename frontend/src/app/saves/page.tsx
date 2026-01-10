@@ -24,7 +24,13 @@ function formatBytes(bytes: number) {
 }
 
 function formatDate(dateStr: string) {
-    return new Date(dateStr).toLocaleString("ko-KR");
+    try {
+        const date = new Date(dateStr)
+        if (isNaN(date.getTime())) return "Invalid Date"
+        return date.toLocaleString("ko-KR");
+    } catch {
+        return "Invalid Date"
+    }
 }
 
 export default function SavesPage() {

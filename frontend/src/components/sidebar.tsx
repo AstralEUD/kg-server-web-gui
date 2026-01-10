@@ -23,7 +23,7 @@ const navItems = [
     { href: "/scenarios", label: "시나리오", icon: Map },
     { href: "/management", label: "서버 관리", icon: Sliders },
     { href: "/saves", label: "세이브", icon: HardDrive },
-    { href: "/presets", label: "프리셋", icon: Layers },
+    { href: "/presets", label: "서버 프로필", icon: Layers },
     { href: "/settings", label: "환경 설정", icon: Cog },
 ]
 

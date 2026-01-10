@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"github.com/astral/kg-server-web-gui/internal/steamcmd"
 	"github.com/astral/kg-server-web-gui/internal/workshop"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 )
 
 func SetupRoutes(app *fiber.App) {
@@ -32,7 +34,7 @@ func SetupRoutes(app *fiber.App) {
 	userManager := auth.NewUserManager(dataPath)
 	sessionManager := auth.NewSessionManager(dataPath)
 	settingsMgr := settings.NewSettingsManager(dataPath)
-	instanceMgr := server.NewInstanceManager(dataPath)
+	instanceMgr := server.NewInstanceManager(dataPath, settingsMgr)
 	proc := agent.NewProcessMonitor("ArmaReforgerServer.exe")
 	cfg := config.NewConfigManager()
 	pm := profile.NewProfileManager(dataPath)
@@ -142,6 +144,7 @@ func SetupRoutes(app *fiber.App) {
 
 	// Legacy Status & Server Control (for backward compatibility)
 	api.Get("/status", baseHandlers.GetStatus)
+	api.Get("/status/resources", baseHandlers.GetResources)
 	api.Post("/server/start", func(c *fiber.Ctx) error {
 		// Use default server instance
 		var req struct {
@@ -285,7 +288,37 @@ func SetupRoutes(app *fiber.App) {
 		if err := cfg.WriteConfig(configPath, p.Config); err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 		}
-		logs.GlobalLogs.Info("프리셋 적용됨: " + p.Name)
+
+		// Restore collection if present
+		if p.CollectionItems != nil && len(p.CollectionItems) > 0 {
+			// Create a temporary collection object to save
+			// We can reuse "My Collection" ID if we know it, or just use the first one from collectionMgr
+			// For simplicity, we'll overwrite the first collection or create "My Collection"
+			cols, _ := collectionMgr.GetCollections()
+			var targetID string
+			if len(cols) > 0 {
+				targetID = cols[0].ID
+			} else {
+				targetID = uuid.New().String()
+			}
+
+			// Convert []any to []workshop.CollectionItem
+			// We need to marshal/unmarshal or map it manually
+			itemsBytes, _ := json.Marshal(p.CollectionItems)
+			var items []workshop.CollectionItem
+			json.Unmarshal(itemsBytes, &items)
+
+			newCol := workshop.Collection{
+				ID:        targetID,
+				Name:      "My Collection (Profile)",
+				Items:     items,
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			}
+			collectionMgr.SaveCollection(newCol)
+		}
+
+		logs.GlobalLogs.Info("프리셋(프로필) 적용됨: " + p.Name)
 		return c.JSON(fiber.Map{"status": "적용됨"})
 	})
 

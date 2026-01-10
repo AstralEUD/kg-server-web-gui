@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"golang.org/x/sys/windows/registry"
 )
 
 // AppSettings stores global application settings
@@ -63,17 +65,37 @@ func (sm *SettingsManager) Load() error {
 
 	// Auto-detect if server path is empty
 	if sm.settings.ServerPath == "" {
+		// 1. Try common paths
 		commonPaths := []string{
 			`C:\Program Files (x86)\Steam\steamapps\common\Arma Reforger Server`,
 			`C:\Program Files\Steam\steamapps\common\Arma Reforger Server`,
 			`D:\SteamLibrary\steamapps\common\Arma Reforger Server`,
 		}
+
+		found := false
 		for _, p := range commonPaths {
 			if _, err := os.Stat(filepath.Join(p, "ArmaReforgerServer.exe")); err == nil {
 				sm.settings.ServerPath = p
-				sm.Save() // Save the detected path
+				found = true
 				break
 			}
+		}
+
+		// 2. Try Registry (InstallLocation)
+		if !found {
+			k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Steam App 1874900`, registry.QUERY_VALUE)
+			if err == nil {
+				defer k.Close()
+				path, _, err := k.GetStringValue("InstallLocation")
+				if err == nil && path != "" {
+					sm.settings.ServerPath = path
+					found = true
+				}
+			}
+		}
+
+		if found {
+			sm.Save() // Save the detected path
 		}
 	}
 

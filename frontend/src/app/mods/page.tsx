@@ -205,28 +205,68 @@ export default function ModsPage() {
         setAddingToConfig(false)
     }
 
-    // Add to Collection
-    const addToCollection = () => {
+    // Add to Collection (Recursive)
+    const addToCollection = async () => {
         if (!selectedAddon) return
-        const newMod: Mod = {
-            modId: selectedAddon.id,
-            name: selectedAddon.name,
-            version: "",
-            path: "",
-            dependencies: (selectedAddon.dependencies || []).map(d => d.id)
+
+        setLoading(true)
+        const newModsMap = new Map<string, Mod>()
+
+        // Add existing to map
+        collectionMods.forEach(m => newModsMap.set(m.modId, m))
+
+        // Helper to recursively fetch
+        const resolve = async (id: string, name: string): Promise<void> => {
+            if (newModsMap.has(id)) return // Already added
+
+            // Fetch details to get deps
+            try {
+                const res = await fetch(`http://localhost:3000/api/workshop/${id}`, { credentials: "include" })
+                if (res.ok) {
+                    const info: WorkshopAddon = await res.json()
+                    // Add this mod
+                    newModsMap.set(info.id, {
+                        modId: info.id,
+                        name: info.name,
+                        version: (info as any).version || "",
+                        path: "",
+                        dependencies: (info.dependencies || []).map(d => d.id)
+                    })
+
+                    // Recurse for deps
+                    if (info.dependencies) {
+                        for (const dep of info.dependencies) {
+                            await resolve(dep.id, dep.name)
+                        }
+                    }
+                } else {
+                    // Fallback if fetch fails (e.g. invalid ID or hidden), just add what we know
+                    if (!newModsMap.has(id)) {
+                        newModsMap.set(id, { modId: id, name: name, version: "", path: "", dependencies: [] })
+                    }
+                }
+            } catch (e) { console.error(e) }
         }
 
-        if (!collectionMods.find(m => m.modId === newMod.modId)) {
-            const newCollection = [...collectionMods, newMod]
-            // Add deps too
-            selectedAddon.dependencies?.forEach(dep => {
-                if (!newCollection.find(m => m.modId === dep.id)) {
-                    newCollection.push({ modId: dep.id, name: dep.name, version: "", path: "", dependencies: [] })
-                }
-            })
-            saveCollectionToBackend(newCollection)
-            alert("모음집에 추가되었습니다.")
+        // Start resolution with selected addon (we already have its info, but good to normalize)
+        // We can optimize by using selectedAddon directly for the first level
+        newModsMap.set(selectedAddon.id, {
+            modId: selectedAddon.id,
+            name: selectedAddon.name,
+            version: (selectedAddon as any).version || "",
+            path: "",
+            dependencies: (selectedAddon.dependencies || []).map(d => d.id)
+        })
+
+        if (selectedAddon.dependencies) {
+            for (const dep of selectedAddon.dependencies) {
+                await resolve(dep.id, dep.name)
+            }
         }
+
+        saveCollectionToBackend(Array.from(newModsMap.values()))
+        setLoading(false)
+        alert("모음집에 추가되었습니다 (의존성 포함).")
     }
 
     const removeFromCollection = (modId: string) => {
@@ -329,9 +369,16 @@ export default function ModsPage() {
                                                 <h3 className="text-lg font-bold text-amber-500">{selectedAddon.name}</h3>
                                                 <p className="text-sm text-zinc-400 font-mono mt-1">{selectedAddon.id}</p>
                                                 {selectedAddon.dependencies && (
-                                                    <div className="mt-2 text-sm">
-                                                        <span className="text-zinc-500">의존성: </span>
-                                                        <span className="text-zinc-300">{selectedAddon.dependencies.length}개</span>
+                                                    <div className="mt-2 text-sm space-y-1">
+                                                        <div className="flex gap-4">
+                                                            <span className="text-zinc-500">버전: <span className="text-zinc-300">{(selectedAddon as any).version || "N/A"}</span></span>
+                                                            <span className="text-zinc-500">업데이트: <span className="text-zinc-300">{(selectedAddon as any).lastUpdated || "N/A"}</span></span>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-zinc-500">의존성: </span>
+                                                            <span className="text-zinc-300">{selectedAddon.dependencies?.length || 0}개</span>
+                                                        </div>
+                                                        {(selectedAddon as any).summary && <div className="text-zinc-400 text-xs mt-2 border-l-2 border-zinc-700 pl-2">{(selectedAddon as any).summary}</div>}
                                                     </div>
                                                 )}
                                             </div>

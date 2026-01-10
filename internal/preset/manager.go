@@ -25,7 +25,8 @@ type Preset struct {
 	Name             string            `json:"name"`
 	Description      string            `json:"description,omitempty"`
 	Config           map[string]any    `json:"config"`           // server.json content
-	Mods             []ModEntry        `json:"mods"`             // Enabled mods
+	Mods             []ModEntry        `json:"mods"`             // Enabled mods (from config)
+	CollectionItems  []any             `json:"collectionItems"`  // My List items (raw json to avoid circular dep with workshop)
 	ScenarioMappings []ScenarioMapping `json:"scenarioMappings"` // !kgmission mappings
 	ActiveScenario   string            `json:"activeScenario"`   // Current scenario
 	CreatedAt        time.Time         `json:"createdAt"`
