@@ -39,16 +39,16 @@ cmd/server/frontend_build/
 # ============================================
 # SteamCMD and Server Files (runtime)
 # ============================================
-steamcmd/
-server/
-servers/
+/steamcmd/
+/server/
+/servers/
 
 # ============================================
 # Data directories (runtime data)
 # ============================================
-data/
-saves/
-backups/
+/data/
+/saves/
+/backups/
 
 # ============================================
 # Frontend build artifacts
