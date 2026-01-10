@@ -26,14 +26,38 @@ func SetupRoutes(app *fiber.App) {
 	// Get working directory for absolute paths
 	workDir, _ := os.Getwd()
 	dataPath := filepath.Join(workDir, "data")
-	savesPath := filepath.Join(workDir, "saves")
+	profilePath := filepath.Join(workDir, "profile")
+	savesPath := filepath.Join(profilePath, "Saves") // Arma Reforger saves inside profile/Saves
 	backupsPath := filepath.Join(workDir, "backups")
 	serverPath := filepath.Join(workDir, "server")
+	addonsPath := filepath.Join(workDir, "addons")
+
+	// Ensure directories exist
+	os.MkdirAll(profilePath, 0755)
+	os.MkdirAll(savesPath, 0755)
+	os.MkdirAll(addonsPath, 0755)
+	os.MkdirAll(backupsPath, 0755)
 
 	// Initialize managers
 	userManager := auth.NewUserManager(dataPath)
 	sessionManager := auth.NewSessionManager(dataPath)
 	settingsMgr := settings.NewSettingsManager(dataPath)
+
+	// Fix: Ensure default paths are set in settings if empty
+	currSettings := settingsMgr.Get()
+	needsUpdate := false
+	if currSettings.AddonsPath == "" {
+		currSettings.AddonsPath = addonsPath
+		needsUpdate = true
+	}
+	if currSettings.ProfilesPath == "" {
+		currSettings.ProfilesPath = profilePath
+		needsUpdate = true
+	}
+	if needsUpdate {
+		settingsMgr.Update(currSettings)
+	}
+
 	instanceMgr := server.NewInstanceManager(dataPath, settingsMgr)
 	proc := agent.NewProcessMonitor("ArmaReforgerServer.exe")
 	cfg := config.NewConfigManager()
@@ -153,20 +177,40 @@ func SetupRoutes(app *fiber.App) {
 		c.BodyParser(&req)
 		logs.GlobalLogs.Info("서버 시작 요청")
 
-		// Force config argument if not present
+		// Track arguments we want to force
 		hasConfig := false
+		hasProfile := false
+		hasAddons := false
+
 		for _, arg := range req.Args {
 			if arg == "-config" {
 				hasConfig = true
-				break
+			}
+			if arg == "-profile" {
+				hasProfile = true
+			}
+			if arg == "-addonDownloadDir" {
+				hasAddons = true
 			}
 		}
+
 		if !hasConfig {
-			configPath, _ := filepath.Abs("server.json")
-			req.Args = append(req.Args, "-config", configPath)
-			// Also add other default args if needed: -profile, -addonDownloadDir
-			// profilePath, _ := filepath.Abs("StartProfile")
-			// req.Args = append(req.Args, "-profile", profilePath)
+			absConfig, _ := filepath.Abs("server.json")
+			req.Args = append(req.Args, "-config", absConfig)
+		}
+		if !hasProfile {
+			absProfile, _ := filepath.Abs("profile")
+			req.Args = append(req.Args, "-profile", absProfile)
+		}
+		if !hasAddons {
+			// Get addons path from settings or use default
+			s := settingsMgr.Get()
+			if s.AddonsPath != "" {
+				req.Args = append(req.Args, "-addonDownloadDir", s.AddonsPath)
+			} else {
+				absAddons, _ := filepath.Abs("addons")
+				req.Args = append(req.Args, "-addonDownloadDir", absAddons)
+			}
 		}
 
 		if err := instanceMgr.Start("default", req.Args); err != nil {
@@ -192,6 +236,7 @@ func SetupRoutes(app *fiber.App) {
 	// Config
 	api.Get("/config", baseHandlers.GetConfig)
 	api.Post("/config", baseHandlers.SaveConfig)
+	api.Post("/config/enrich", baseHandlers.EnrichMods)
 
 	// Mods
 	api.Get("/mods", baseHandlers.ListInstalledMods)

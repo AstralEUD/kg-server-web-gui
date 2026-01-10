@@ -16,10 +16,12 @@ interface SaveFile {
 }
 
 function formatBytes(bytes: number) {
+    if (typeof bytes !== 'number' || isNaN(bytes)) return '0 Bytes';
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
+    if (i < 0) return bytes + ' Bytes';
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
@@ -27,7 +29,7 @@ function formatDate(dateStr: string) {
     if (!dateStr) return "-";
     try {
         const date = new Date(dateStr)
-        if (isNaN(date.getTime())) return "Invalid Date"
+        if (isNaN(date.getTime())) return "-";
         return date.toLocaleString("ko-KR", {
             year: 'numeric',
             month: '2-digit',
@@ -37,7 +39,7 @@ function formatDate(dateStr: string) {
             hour12: false
         });
     } catch {
-        return "Invalid Date"
+        return "-"
     }
 }
 
@@ -46,8 +48,10 @@ export default function SavesPage() {
     const [backups, setBackups] = useState<SaveFile[]>([])
     const [loading, setLoading] = useState(false)
     const [processing, setProcessing] = useState<string | null>(null)
+    const [mounted, setMounted] = useState(false)
 
     useEffect(() => {
+        setMounted(true)
         fetchSaves()
         fetchBackups()
     }, [])
@@ -56,7 +60,11 @@ export default function SavesPage() {
         setLoading(true)
         try {
             const res = await fetch("http://localhost:3000/api/saves", { credentials: "include" })
-            if (res.ok) setSaves(await res.json())
+            if (res.ok) {
+                const data = await res.json()
+                // Ensure data is an array
+                setSaves(Array.isArray(data) ? data : [])
+            }
         } catch (e) { console.error(e) }
         setLoading(false)
     }
@@ -64,8 +72,21 @@ export default function SavesPage() {
     const fetchBackups = async () => {
         try {
             const res = await fetch("http://localhost:3000/api/saves/backups", { credentials: "include" })
-            if (res.ok) setBackups(await res.json())
+            if (res.ok) {
+                const data = await res.json()
+                // Ensure data is an array
+                setBackups(Array.isArray(data) ? data : [])
+            }
         } catch (e) { console.error(e) }
+    }
+
+    // Client-side guard to prevent hydration mismatch
+    if (!mounted) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 text-white p-6 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 animate-spin" />
+            </div>
+        )
     }
 
     const createBackup = async (saveName: string) => {

@@ -14,7 +14,7 @@ func (h *ApiHandlers) ListInstalledMods(c *fiber.Ctx) error {
 	// Prioritize Settings, fallback to query or default
 	path := h.Settings.Get().AddonsPath
 	if path == "" {
-		path = c.Query("path", "C:\\saves\\addons")
+		path = "addons"
 	}
 
 	mods, err := agent.ScanAddons(path)
@@ -35,8 +35,7 @@ func (h *ApiHandlers) DeleteMod(c *fiber.Ctx) error {
 	// STRICT: Only delete from configured addons path
 	path := h.Settings.Get().AddonsPath
 	if path == "" {
-		// Fallback to query only if strictly needed, but let's be safe and require configuration or standard default
-		path = c.Query("path", "C:\\saves\\addons")
+		path = "addons"
 	}
 
 	mods, err := agent.ScanAddons(path)

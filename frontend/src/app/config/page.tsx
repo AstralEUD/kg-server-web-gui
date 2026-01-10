@@ -38,11 +38,7 @@ interface ServerConfig {
             persistence?: {
                 autoSaveInterval: number
             }
-            missionHeader?: {
-                m_sName?: string
-                m_sAuthor?: string
-                m_iPlayerCount?: number
-            }
+            missionHeader?: Record<string, any>
         }
         mods: { modId: string; name?: string; required?: boolean }[]
     }
@@ -193,6 +189,78 @@ export default function ConfigPage() {
         setSaving(false)
     }
 
+    const [syncing, setSyncing] = useState(false)
+
+    const syncToCollection = async () => {
+        if (!config.game.mods || config.game.mods.length === 0) {
+            alert("동기화할 모드가 없습니다.")
+            return
+        }
+
+        setSyncing(true)
+        try {
+            // 1. Enrich mods (get dependencies and scenarios)
+            const enrichRes = await fetch("http://localhost:3000/api/config/enrich", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ mods: config.game.mods })
+            })
+
+            if (!enrichRes.ok) {
+                throw new Error("Enrich failed")
+            }
+
+            const enrichData = await enrichRes.json()
+
+            // 2. Get existing collection
+            const colRes = await fetch("http://localhost:3000/api/collections", { credentials: "include" })
+            const collections = await colRes.json()
+
+            let collectionId = collections?.[0]?.id
+            if (!collectionId) {
+                // Create new collection
+                const createRes = await fetch("http://localhost:3000/api/collections", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({ name: "My Collection", items: [] })
+                })
+                const newCol = await createRes.json()
+                collectionId = newCol.id
+            }
+
+            // 3. Build collection items from enriched mods
+            const items = enrichData.mods.map((m: any) => ({
+                modId: m.modId,
+                name: m.name,
+                version: "",
+                deps: m.dependencies || []
+            }))
+
+            // 4. Save to collection
+            await fetch("http://localhost:3000/api/collections", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({
+                    id: collectionId,
+                    name: collections?.[0]?.name || "My Collection",
+                    items: items
+                })
+            })
+
+            // 5. Report scenarios found
+            const scenarioCount = enrichData.scenarios?.length || 0
+            alert(`동기화 완료!\n- 모드 ${items.length}개가 컬렉션에 추가됨\n- 시나리오 ${scenarioCount}개 발견됨\n\n시나리오 페이지에서 확인할 수 있습니다.`)
+
+        } catch (e) {
+            console.error(e)
+            alert("동기화 실패. 콘솔 확인.")
+        }
+        setSyncing(false)
+    }
+
     const updateGame = (field: keyof ServerConfig["game"], value: any) => {
         setConfig(prev => ({ ...prev, game: { ...prev.game, [field]: value } }))
     }
@@ -247,6 +315,10 @@ export default function ConfigPage() {
                         <Button className="gap-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700" onClick={saveConfig} disabled={saving}>
                             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                             저장하기
+                        </Button>
+                        <Button variant="secondary" className="gap-2" onClick={syncToCollection} disabled={syncing}>
+                            {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
+                            컬렉션 동기화
                         </Button>
                     </div>
                 </div>

@@ -48,14 +48,8 @@ type PersistenceConfig struct {
 	AutoSaveInterval int `json:"autoSaveInterval"`
 }
 
-type MissionHeaderConfig struct {
-	Name        string `json:"m_sName,omitempty"`
-	Author      string `json:"m_sAuthor,omitempty"`
-	Description string `json:"m_sDescription,omitempty"`
-	Details     string `json:"m_sDetails,omitempty"`
-	GameMode    string `json:"m_sGameMode,omitempty"`
-	PlayerCount int    `json:"m_iPlayerCount,omitempty"`
-}
+// MissionHeaderConfig uses map to preserve all custom fields (COE2, etc.)
+type MissionHeaderConfig = map[string]any
 
 // Custom Unmarshal for MissionHeader to capture all fields?
 // For now let's just use map[string]interface{} or specific struct if we want.
