@@ -284,9 +284,21 @@ func SetupRoutes(app *fiber.App) {
 		if p == nil {
 			return c.Status(404).JSON(fiber.Map{"error": "프리셋을 찾을 수 없습니다"})
 		}
-		// Apply preset config - convert to map[string]interface{}
+		// Apply preset config - convert map to ServerConfig
 		configPath := filepath.Join(workDir, "server.json")
-		if err := cfg.WriteConfig(configPath, p.Config); err != nil {
+
+		// Marshal map to JSON, then unmarshal to ServerConfig
+		configBytes, err := json.Marshal(p.Config)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to marshal config: " + err.Error()})
+		}
+
+		var serverConfig config.ServerConfig
+		if err := json.Unmarshal(configBytes, &serverConfig); err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to parse config: " + err.Error()})
+		}
+
+		if err := cfg.WriteConfig(configPath, &serverConfig); err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 		}
 

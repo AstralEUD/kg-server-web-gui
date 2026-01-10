@@ -43,10 +43,10 @@ func (p *ProcessMonitor) ListScenarios(serverPath string, addonDirs []string) ([
 		fmt.Printf("Warning: listScenarios exited with: %v\n", err)
 	}
 
-	return parseScenarios(out.String()), nil
+	return parseScenarios(out.String(), addonDirs), nil
 }
 
-func parseScenarios(output string) []Scenario {
+func parseScenarios(output string, addonDirs []string) []Scenario {
 	// Vanilla Scenarios
 	vanilla := []Scenario{
 		{ID: "{59AD59368755F41A}Missions/21_GM_Eden.conf", Name: "Game Master: Everon"},
