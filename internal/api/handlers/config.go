@@ -1,6 +1,9 @@
 package handlers
 
-import "github.com/gofiber/fiber/v2"
+import (
+	"github.com/astral/kg-server-web-gui/internal/config"
+	"github.com/gofiber/fiber/v2"
+)
 
 // GetConfig reads server.json
 func (h *ApiHandlers) GetConfig(c *fiber.Ctx) error {
@@ -18,12 +21,12 @@ func (h *ApiHandlers) GetConfig(c *fiber.Ctx) error {
 func (h *ApiHandlers) SaveConfig(c *fiber.Ctx) error {
 	path := c.Query("path", "server.json")
 
-	var data map[string]interface{}
+	var data config.ServerConfig
 	if err := c.BodyParser(&data); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	if err := h.Config.WriteConfig(path, data); err != nil {
+	if err := h.Config.WriteConfig(path, &data); err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 

@@ -49,11 +49,11 @@ type PersistenceConfig struct {
 }
 
 type MissionHeaderConfig struct {
-	// Using map for flexibility as this can vary
-	MissionHeader map[string]interface{} `json:"missionHeader,omitempty"` // Wait, user sample has flat fields inside missionHeader
-	// Let's explicitly define common fields based on user sample
 	Name        string `json:"m_sName,omitempty"`
 	Author      string `json:"m_sAuthor,omitempty"`
+	Description string `json:"m_sDescription,omitempty"`
+	Details     string `json:"m_sDetails,omitempty"`
+	GameMode    string `json:"m_sGameMode,omitempty"`
 	PlayerCount int    `json:"m_iPlayerCount,omitempty"`
 }
 

@@ -104,13 +104,45 @@ export default function SettingsPage() {
                     {/* Paths Tab */}
                     <TabsContent value="paths">
                         <Card className="bg-zinc-800/50 border-zinc-700">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <FolderOpen className="w-5 h-5" /> 경로 설정
-                                </CardTitle>
-                                <CardDescription>
-                                    서버 파일과 데이터가 저장될 경로를 지정합니다. 절대 경로를 사용해주세요.
-                                </CardDescription>
+                            <CardHeader className="flex flex-row items-center justify-between">
+                                <div>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <FolderOpen className="w-5 h-5" /> 경로 설정
+                                    </CardTitle>
+                                    <CardDescription>
+                                        서버 파일과 데이터가 저장될 경로를 지정합니다.
+                                    </CardDescription>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Label className="whitespace-nowrap">빠른 템플릿:</Label>
+                                    <select
+                                        className="bg-zinc-900 border border-zinc-700 rounded text-xs p-1"
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            if (val === "portable") {
+                                                setSettings(prev => ({
+                                                    ...prev,
+                                                    serverPath: ".\\server",
+                                                    addonsPath: ".\\addons",
+                                                    profilesPath: ".\\profiles",
+                                                    steamcmdPath: ".\\steamcmd"
+                                                }))
+                                            } else if (val === "default") {
+                                                setSettings(prev => ({
+                                                    ...prev,
+                                                    serverPath: "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Arma Reforger Server",
+                                                    addonsPath: "C:\\Users\\Administrator\\Documents\\My Games\\ArmaReforger\\addons",
+                                                    profilesPath: "C:\\Users\\Administrator\\Documents\\My Games\\ArmaReforger\\profile",
+                                                    steamcmdPath: "C:\\SteamCMD"
+                                                }))
+                                            }
+                                        }}
+                                    >
+                                        <option value="">선택하세요</option>
+                                        <option value="portable">Portable (현재 폴더 기준)</option>
+                                        <option value="default">Standard (기본 설치 경로)</option>
+                                    </select>
+                                </div>
                             </CardHeader>
                             <CardContent className="space-y-6">
                                 <div className="space-y-2">

@@ -3,7 +3,9 @@ package agent
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -81,6 +83,14 @@ func parseScenarios(output string) []Scenario {
 		}
 	}
 
+	// Add manual scan results
+	manualParams := ScanScenariosFromAddons(addonDirs)
+	for _, s := range manualParams {
+		if _, exists := scenariosMap[s.ID]; !exists {
+			scenariosMap[s.ID] = s
+		}
+	}
+
 	// Convert map to slice
 	var scenarios []Scenario
 	// First add vanilla ones to ensure order (if they exist in map)
@@ -95,5 +105,61 @@ func parseScenarios(output string) []Scenario {
 		scenarios = append(scenarios, s)
 	}
 
+	return scenarios
+}
+
+// ScanScenariosFromAddons manually scans addon directories for .conf files
+func ScanScenariosFromAddons(roots []string) []Scenario {
+	var scenarios []Scenario
+	nameRegex := regexp.MustCompile(`m_sName\s+"([^"]+)"`)
+
+	for _, root := range roots {
+		_ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				return nil
+			}
+			// Look for addon.gproj to identify mod root
+			if !d.IsDir() && strings.ToLower(d.Name()) == "addon.gproj" {
+				// Found a mod root
+				modDir := filepath.Dir(path)
+				dirName := filepath.Base(modDir)
+				parts := strings.Split(dirName, "_")
+				var guid string
+				if len(parts) > 1 {
+					guid = parts[len(parts)-1]
+				} else {
+					return nil // Can't determine GUID, skip
+				}
+
+				// Check Missions folder
+				missionsDir := filepath.Join(modDir, "Missions")
+				if _, err := os.Stat(missionsDir); err == nil {
+					// Walk Missions dir
+					_ = filepath.WalkDir(missionsDir, func(mPath string, mD os.DirEntry, mErr error) error {
+						if mErr == nil && !mD.IsDir() && strings.HasSuffix(strings.ToLower(mD.Name()), ".conf") {
+							// Found a scenario config
+							relPath, _ := filepath.Rel(modDir, mPath)
+							relPath = strings.ReplaceAll(relPath, "\\", "/")
+							id := fmt.Sprintf("{%s}%s", guid, relPath)
+
+							// Try to find name in file
+							name := strings.TrimSuffix(mD.Name(), ".conf") // Default name
+							content, err := os.ReadFile(mPath)
+							if err == nil {
+								match := nameRegex.FindSubmatch(content)
+								if len(match) > 1 {
+									name = string(match[1])
+								}
+							}
+
+							scenarios = append(scenarios, Scenario{ID: id, Name: name})
+						}
+						return nil
+					})
+				}
+			}
+			return nil
+		})
+	}
 	return scenarios
 }

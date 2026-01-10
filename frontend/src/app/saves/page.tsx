@@ -24,10 +24,18 @@ function formatBytes(bytes: number) {
 }
 
 function formatDate(dateStr: string) {
+    if (!dateStr) return "-";
     try {
         const date = new Date(dateStr)
         if (isNaN(date.getTime())) return "Invalid Date"
-        return date.toLocaleString("ko-KR");
+        return date.toLocaleString("ko-KR", {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        });
     } catch {
         return "Invalid Date"
     }

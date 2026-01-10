@@ -17,34 +17,32 @@ func NewConfigManager() *ConfigManager {
 	return &ConfigManager{}
 }
 
-// ReadConfig reads JSON config into a map
-func (m *ConfigManager) ReadConfig(path string) (map[string]interface{}, error) {
+// ReadConfig reads JSON config into ServerConfig struct
+func (m *ConfigManager) ReadConfig(path string) (*ServerConfig, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	f, err := os.Open(path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return &ServerConfig{}, nil
+		}
 		return nil, err
 	}
 	defer f.Close()
 
-	var data map[string]interface{}
+	var data ServerConfig
 	decoder := json.NewDecoder(f)
 	if err := decoder.Decode(&data); err != nil {
 		return nil, err
 	}
-	return data, nil
+	return &data, nil
 }
 
-// WriteConfig writes JSON config atomically
-func (m *ConfigManager) WriteConfig(path string, data map[string]interface{}) error {
+// WriteConfig writes JSON config from ServerConfig struct
+func (m *ConfigManager) WriteConfig(path string, data *ServerConfig) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
-	// Validate before write
-	if err := m.ValidateConfig(data); err != nil {
-		return err
-	}
 
 	// 1. Marshal to bytes
 	bytes, err := json.MarshalIndent(data, "", "  ")
@@ -54,11 +52,15 @@ func (m *ConfigManager) WriteConfig(path string, data map[string]interface{}) er
 
 	// 2. Write to temp file
 	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+
 	tmpFile, err := os.CreateTemp(dir, "server.json.tmp")
 	if err != nil {
 		return err
 	}
-	defer os.Remove(tmpFile.Name()) // Clean up if something fails
+	defer os.Remove(tmpFile.Name())
 
 	if _, err := tmpFile.Write(bytes); err != nil {
 		tmpFile.Close()
@@ -67,25 +69,8 @@ func (m *ConfigManager) WriteConfig(path string, data map[string]interface{}) er
 	tmpFile.Close()
 
 	// 3. Rename (Atomic replace)
-	// Backup first? (Optional, maybe handled by calling Backup function separately)
 	if err := os.Rename(tmpFile.Name(), path); err != nil {
 		return err
-	}
-
-	return nil
-}
-
-// ValidateConfig performs basic schema checks
-func (m *ConfigManager) ValidateConfig(data map[string]interface{}) error {
-	// Check root keys
-	// Reforger config usually has top level keys or "game" key depending on version/structure.
-	// Usually: { "server": {...}, "game": {...} }
-
-	if _, ok := data["game"]; !ok {
-		// Just a warning or strict error?
-		// "game" section is required for mission/mods.
-		// Let's enforce it.
-		return fmt.Errorf("missing 'game' section in server.json")
 	}
 
 	return nil

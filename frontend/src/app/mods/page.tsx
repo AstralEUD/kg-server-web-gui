@@ -274,6 +274,49 @@ export default function ModsPage() {
         saveCollectionToBackend(newCollection)
     }
 
+    const removeEnabledMod = async (modId: string) => {
+        if (!confirm("서버 설정에서 이 모드를 제거하시겠습니까? (자동 저장됨)")) return
+        try {
+            const configRes = await fetch("http://localhost:3000/api/config", { credentials: "include" })
+            if (!configRes.ok) return
+            const config = await configRes.json()
+
+            if (config.game && config.game.mods) {
+                config.game.mods = config.game.mods.filter((m: any) => (m.modId || m.id) !== modId)
+
+                await fetch("http://localhost:3000/api/config", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify(config)
+                })
+                fetchConfig()
+            }
+        } catch (e) {
+            console.error(e)
+            alert("제거 실패")
+        }
+    }
+
+    const deleteInstalledMod = async (modId: string) => {
+        if (!confirm("디스크에서 모드 파일을 영구 삭제하시겠습니까?")) return
+        try {
+            const res = await fetch(`http://localhost:3000/api/mods/${modId}`, {
+                method: "DELETE",
+                credentials: "include"
+            })
+            if (res.ok) {
+                alert("삭제되었습니다.")
+                fetchInstalledMods()
+            } else {
+                alert("삭제 실패")
+            }
+        } catch (e) {
+            console.error(e)
+            alert("오류 발생")
+        }
+    }
+
     // Helper to check status
     const getStatus = (modId: string) => {
         const isInstalled = installedMods.some(m => m.modId === modId)
@@ -398,17 +441,39 @@ export default function ModsPage() {
                             <CardHeader><CardTitle>서버 설정 (Enabled Mods)</CardTitle><CardDescription>server.json에 저장된 실제 로드될 모드 목록</CardDescription></CardHeader>
                             <CardContent>
                                 <Table>
-                                    <TableHeader><TableRow><TableHead>목록</TableHead><TableHead></TableHead></TableRow></TableHeader>
+                                    <TableHeader><TableRow><TableHead>목록</TableHead><TableHead>ID</TableHead><TableHead>의존성</TableHead><TableHead className="text-right">관리</TableHead></TableRow></TableHeader>
                                     <TableBody>
-                                        {enabledMods.map(mod => (
-                                            <TableRow key={mod.modId}>
-                                                <TableCell>{mod.name}</TableCell>
-                                                <TableCell className="text-right">
-                                                    {/* Removal logic would go here if implemented, or just rely on Collection management */}
-                                                    <Badge variant="outline">Configured</Badge>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
+                                        {enabledMods.map(mod => {
+                                            // Find full info from installed mods to get dependencies
+                                            const installedInfo = installedMods.find(im => im.modId === (mod.modId || (mod as any).id))
+                                            const deps = installedInfo?.dependencies || []
+
+                                            return (
+                                                <TableRow key={mod.modId}>
+                                                    <TableCell>{mod.name}</TableCell>
+                                                    <TableCell className="font-mono text-xs text-zinc-500">{mod.modId}</TableCell>
+                                                    <TableCell>
+                                                        {deps.length > 0 ? (
+                                                            <div className="flex items-center gap-2" title={deps.map(d => installedMods.find(im => im.modId === d)?.name || d).join(", ")}>
+                                                                <Badge variant="secondary" className="bg-blue-500/10 text-blue-400 cursor-help">
+                                                                    {deps.length} Deps
+                                                                </Badge>
+                                                                <span className="text-xs text-zinc-500 truncate max-w-[150px] hidden md:inline-block">
+                                                                    {deps.map(d => installedMods.find(im => im.modId === d)?.name || d).join(", ")}
+                                                                </span>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-zinc-600 text-xs">-</span>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 hover:bg-red-900/20" onClick={() => removeEnabledMod(mod.modId)}>
+                                                            <Trash2 className="w-4 h-4 mr-1" /> 제거
+                                                        </Button>
+                                                    </TableCell>
+                                                </TableRow>
+                                            )
+                                        })}
                                     </TableBody>
                                 </Table>
                             </CardContent>
@@ -421,9 +486,39 @@ export default function ModsPage() {
                             <CardHeader><CardTitle>디스크에 설치됨</CardTitle><CardDescription>서버 폴더에 실제로 존재하는 모드 파일들</CardDescription></CardHeader>
                             <CardContent><ScrollArea className="h-[400px]">
                                 <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>이름</TableHead>
+                                            <TableHead>ID</TableHead>
+                                            <TableHead>의존성</TableHead>
+                                            <TableHead className="text-right">관리</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
                                     <TableBody>
                                         {installedMods.map(m => (
-                                            <TableRow key={m.modId}><TableCell>{m.name}</TableCell><TableCell className="font-mono text-xs">{m.modId}</TableCell></TableRow>
+                                            <TableRow key={m.modId}>
+                                                <TableCell>{m.name}</TableCell>
+                                                <TableCell className="font-mono text-xs">{m.modId}</TableCell>
+                                                <TableCell>
+                                                    {m.dependencies && m.dependencies.length > 0 ? (
+                                                        <div className="flex items-center gap-2" title={m.dependencies.map(d => installedMods.find(im => im.modId === d)?.name || d).join(", ")}>
+                                                            <Badge variant="secondary" className="bg-amber-500/10 text-amber-500 cursor-help">
+                                                                {m.dependencies.length} Deps
+                                                            </Badge>
+                                                            <span className="text-xs text-zinc-500 truncate max-w-[200px] hidden md:inline-block">
+                                                                {m.dependencies.map(d => installedMods.find(im => im.modId === d)?.name || d).join(", ")}
+                                                            </span>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-zinc-600 text-xs">-</span>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <Button size="sm" variant="ghost" className="text-zinc-500 hover:text-red-400" onClick={() => deleteInstalledMod(m.modId)}>
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
                                         ))}
                                     </TableBody>
                                 </Table>

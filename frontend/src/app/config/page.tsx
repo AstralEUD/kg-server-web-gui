@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Upload, Save, Settings, Globe, Gamepad2, Cpu, Radio, Database, Loader2 } from "lucide-react"
+import { Upload, Save, Settings, Globe, Gamepad2, Cpu, Radio, Database, Loader2, Download, RefreshCw } from "lucide-react"
 
 interface ServerConfig {
     bindAddress?: string
@@ -138,6 +138,43 @@ export default function ConfigPage() {
         setLoading(false)
     }
 
+    const importConfig = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        const reader = new FileReader()
+        reader.onload = (event) => {
+            try {
+                const json = JSON.parse(event.target?.result as string)
+                // Merge logic similar to fetch
+                if (!json.game) json.game = defaultConfig.game
+                if (!json.game.gameProperties) json.game.gameProperties = defaultConfig.game.gameProperties
+                if (!json.operating) json.operating = defaultConfig.operating
+                if (!json.operating.joinQueue) json.operating.joinQueue = defaultConfig.operating.joinQueue
+
+                setConfig({ ...defaultConfig, ...json })
+                setAdminsText(json.game?.admins?.join("\n") || "")
+                alert("설정이 로드되었습니다. 적용하려면 '저장하기'를 눌러주세요.")
+            } catch (err) {
+                alert("유효하지 않은 설정 파일입니다.")
+            }
+        }
+        reader.readAsText(file)
+    }
+
+    const exportConfig = () => {
+        const jsonString = JSON.stringify(config, null, 2)
+        const blob = new Blob([jsonString], { type: "application/json" })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = "server.json"
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+    }
+
     const saveConfig = async () => {
         setSaving(true)
         try {
@@ -191,8 +228,21 @@ export default function ConfigPage() {
                         <p className="text-zinc-400 mt-1">Arma Reforger 전용 서버 설정을 관리합니다</p>
                     </div>
                     <div className="flex gap-3">
-                        <Button variant="outline" className="gap-2" onClick={fetchConfig}>
+                        <input
+                            type="file"
+                            accept=".json"
+                            className="hidden"
+                            id="config-upload"
+                            onChange={importConfig}
+                        />
+                        <Button variant="outline" className="gap-2" onClick={exportConfig}>
+                            <Download className="w-4 h-4" /> 내보내기
+                        </Button>
+                        <Button variant="outline" className="gap-2" onClick={() => document.getElementById('config-upload')?.click()}>
                             <Upload className="w-4 h-4" /> 불러오기
+                        </Button>
+                        <Button variant="outline" className="gap-2" onClick={fetchConfig}>
+                            <RefreshCw className="w-4 h-4" /> 새로고침
                         </Button>
                         <Button className="gap-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700" onClick={saveConfig} disabled={saving}>
                             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}

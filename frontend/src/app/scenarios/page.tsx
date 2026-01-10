@@ -106,6 +106,31 @@ export default function ScenariosPage() {
         setTimeout(() => setCopied(""), 2000)
     }
 
+    const applyScenario = async (id: string) => {
+        if (!confirm("이 시나리오를 서버 기본 시나리오로 설정하시겠습니까?")) return
+        try {
+            // Fetch current config
+            const configRes = await fetch("http://localhost:3000/api/config", { credentials: "include" })
+            if (!configRes.ok) throw new Error("Config load failed")
+            const config = await configRes.json()
+
+            // Update scenarioId
+            config.game.scenarioId = id
+
+            // Save back
+            await fetch("http://localhost:3000/api/config", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify(config)
+            })
+            alert("서버 시나리오가 변경되었습니다.")
+        } catch (e) {
+            console.error(e)
+            alert("변경 실패")
+        }
+    }
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 text-white p-6">
             <div className="max-w-7xl mx-auto space-y-6">
@@ -140,20 +165,29 @@ export default function ScenariosPage() {
                             ) : (
                                 <div className="space-y-3">
                                     {scenarios.map(s => (
-                                        <div key={s.scenarioId} className="flex items-center justify-between p-3 rounded-lg bg-zinc-900 border border-zinc-700">
+                                        <div key={s.scenarioId} className="flex flex-col gap-3 p-3 rounded-lg bg-zinc-900 border border-zinc-700">
                                             <div>
                                                 <div className="font-medium">{s.name}</div>
-                                                <div className="text-xs text-zinc-500 font-mono mt-1">{s.scenarioId}</div>
+                                                <div className="text-xs text-zinc-500 font-mono mt-1 break-all">{s.scenarioId}</div>
                                             </div>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => copyScenarioId(s.scenarioId)}
-                                                className="gap-2"
-                                            >
-                                                {copied === s.scenarioId ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                                                {copied === s.scenarioId ? "복사됨" : "ID 복사"}
-                                            </Button>
+                                            <div className="flex gap-2 justify-end">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => copyScenarioId(s.scenarioId)}
+                                                    className="gap-2"
+                                                >
+                                                    {copied === s.scenarioId ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                                                    {copied === s.scenarioId ? "복사됨" : "ID 복사"}
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="secondary"
+                                                    onClick={() => applyScenario(s.scenarioId)}
+                                                >
+                                                    <Play className="w-3 h-3 mr-1" /> 서버에 적용
+                                                </Button>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>

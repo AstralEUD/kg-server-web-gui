@@ -46,7 +46,7 @@ func SetupRoutes(app *fiber.App) {
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(userManager, sessionManager)
 
-	baseHandlers := handlers.NewApiHandlers(proc, cfg)
+	baseHandlers := handlers.NewApiHandlers(proc, cfg, settingsMgr)
 	profileHandler := handlers.NewProfileHandler(pm)
 	savesHandler := handlers.NewSavesHandler(sm)
 	collectionHandler := handlers.NewCollectionHandler(collectionMgr)
@@ -195,6 +195,7 @@ func SetupRoutes(app *fiber.App) {
 
 	// Mods
 	api.Get("/mods", baseHandlers.ListInstalledMods)
+	api.Delete("/mods/:id", baseHandlers.DeleteMod)
 	api.Get("/workshop/search", baseHandlers.SearchWorkshop)
 	api.Get("/workshop/search", baseHandlers.SearchWorkshop)
 	api.Get("/workshop/:id", baseHandlers.GetWorkshopInfo)
