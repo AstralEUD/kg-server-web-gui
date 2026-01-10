@@ -14,14 +14,15 @@ type Mod struct {
 	ModID        string   `json:"modId"`
 	Version      string   `json:"version"`
 	Path         string   `json:"path"`
+	Size         int64    `json:"size"`
 	Dependencies []string `json:"dependencies"`
 }
 
 // Project represents addon.gproj XML structure
 type Project struct {
-	XMLName      xml.Name `xml:"Project"`
-	Properties   []Prop   `xml:"Property"`
-	Dependencies Deps     `xml:"Dependencies"`
+	XMLName    xml.Name `xml:"Project"`
+	Properties []Prop   `xml:"Property"`
+	Deps       Deps     `xml:"Dependencies"`
 }
 
 type Prop struct {
@@ -35,6 +36,24 @@ type Deps struct {
 
 type Dep struct {
 	Value string `xml:"value,attr"`
+}
+
+// getDirSize calculates the total size of a directory recursively
+func getDirSize(path string) int64 {
+	var size int64
+	filepath.WalkDir(path, func(_ string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if !d.IsDir() {
+			info, err := d.Info()
+			if err == nil {
+				size += info.Size()
+			}
+		}
+		return nil
+	})
+	return size
 }
 
 // ScanAddons recursively scans for addon.gproj
@@ -51,21 +70,26 @@ func ScanAddons(root string) ([]Mod, error) {
 		if strings.ToLower(d.Name()) == "addon.gproj" {
 			mod, err := parseGproj(path)
 			if err == nil {
-				// ModID is usually the GUID in the folder name or inside gproj.
-				// By convention, folder is "Name_GUID".
-				// But let's trust gproj or folder name parsing.
-				// For now, let's extract GUID from folder path if possible, or assume gproj has it (it often doesn't).
-				// We'll extract from parent dir name: "MyMod_595F2BF2F4E" -> "595F2BF2F4E"
+				mod.Path = filepath.Dir(path)
+				mod.Size = getDirSize(mod.Path)
 
-				dirName := filepath.Base(filepath.Dir(path))
+				// Extract GUID from folder name: "MyMod_595F2BF2F4E" -> "595F2BF2F4E"
+				dirName := filepath.Base(mod.Path)
 				parts := strings.Split(dirName, "_")
 				if len(parts) > 1 {
-					mod.ModID = parts[len(parts)-1] // Last part is usually GUID
+					// Use the last part as GUID if it looks like one (hexadecimal)
+					potentialID := parts[len(parts)-1]
+					mod.ModID = potentialID
+				} else if mod.ModID == "" {
+					// Fallback: use directory name if no GUID found and not set in gproj
+					mod.ModID = dirName
 				}
 
-				mod.Path = filepath.Dir(path)
 				mods = append(mods, mod)
 			}
+			// Once we find addon.gproj, we don't need to scan deeper in THIS directory
+			// but WalkDir doesn't support skipping subtrees easily from a file.
+			// However, addon.gproj is usually at the root of a mod.
 		}
 		return nil
 	})
@@ -98,13 +122,9 @@ func parseGproj(path string) (Mod, error) {
 	}
 
 	// Collect dependencies
-	// Method 1: <Dependencies><Dependency value="..."/></Dependencies>
-	for _, d := range proj.Dependencies.Items {
+	for _, d := range proj.Deps.Items {
 		mod.Dependencies = append(mod.Dependencies, d.Value)
 	}
-
-	// Method 2: <Property name="Dependencies" value="GUI1,GUID2" /> (Old format?)
-	// If needed we can check Properties for "Dependencies" CSV string.
 
 	return mod, nil
 }

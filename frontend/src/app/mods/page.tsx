@@ -8,13 +8,24 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, Package, Plus, Trash2, Download, RefreshCw, ArrowUpDown, ExternalLink, Loader2, AlertTriangle, CheckCircle, Save, FolderHeart, List } from "lucide-react"
+import { Search, Package, Plus, Trash2, Download, RefreshCw, ArrowUpDown, ExternalLink, Loader2, AlertTriangle, CheckCircle, Save, FolderHeart, List, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown } from "lucide-react"
+
+function formatBytes(bytes: number) {
+    if (typeof bytes !== 'number' || isNaN(bytes)) return '0 Bytes';
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    if (i < 0) return bytes + ' Bytes';
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
 
 interface Mod {
     modId: string
     name: string
     version: string
     path: string
+    size?: number
     dependencies: string[]
 }
 
@@ -38,6 +49,10 @@ export default function ModsPage() {
     const [searching, setSearching] = useState(false)
     const [missingDeps, setMissingDeps] = useState<string[]>([])
     const [addingToConfig, setAddingToConfig] = useState(false)
+
+    // Sort/Filter for Collection
+    const [collectionSortKey, setCollectionSortKey] = useState<'name' | 'size'>('name')
+    const [collectionSortOrder, setCollectionSortOrder] = useState<'asc' | 'desc'>('asc')
 
     useEffect(() => {
         fetchInstalledMods()
@@ -189,8 +204,8 @@ export default function ModsPage() {
             if (!config.game) config.game = {}
             if (!config.game.mods) config.game.mods = []
 
-            if (!config.game.mods.find((m: any) => m.modId === mod.modId)) {
-                config.game.mods.push({ modId: mod.modId, name: mod.name, version: "" })
+            if (!config.game.mods.find((m: any) => (m.modId || m.id) === mod.modId)) {
+                config.game.mods.push({ modId: mod.modId, name: mod.name, version: mod.version || "" })
             }
 
             // Save
@@ -205,7 +220,73 @@ export default function ModsPage() {
         setAddingToConfig(false)
     }
 
+    const saveEnabledModsToConfig = async (newEnabled: Mod[]) => {
+        setAddingToConfig(true)
+        try {
+            const configRes = await fetch("http://localhost:3000/api/config", { credentials: "include" })
+            if (!configRes.ok) throw new Error("Load failed")
+            const config = await configRes.json()
+
+            if (!config.game) config.game = {}
+            config.game.mods = newEnabled.map(m => ({
+                modId: m.modId,
+                name: m.name,
+                version: m.version || ""
+            }))
+
+            await fetch("http://localhost:3000/api/config", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify(config)
+            })
+        } catch (e) {
+            console.error(e)
+            alert("순서 저장 실패")
+        }
+        setAddingToConfig(false)
+    }
+
+    const moveEnabledMod = (index: number, direction: 'up' | 'down' | 'top' | 'bottom') => {
+        const newMods = [...enabledMods]
+        const [item] = newMods.splice(index, 1)
+
+        if (direction === 'up') newMods.splice(Math.max(0, index - 1), 0, item)
+        else if (direction === 'down') newMods.splice(Math.min(newMods.length, index + 1), 0, item)
+        else if (direction === 'top') newMods.unshift(item)
+        else if (direction === 'bottom') newMods.push(item)
+
+        setEnabledMods(newMods)
+        saveEnabledModsToConfig(newMods)
+    }
+
+    const toggleCollectionSort = (key: 'name' | 'size') => {
+        if (collectionSortKey === key) {
+            setCollectionSortOrder(collectionSortOrder === 'asc' ? 'desc' : 'asc')
+        } else {
+            setCollectionSortKey(key)
+            setCollectionSortOrder('asc')
+        }
+    }
+
+    const sortedCollection = [...collectionMods].sort((a, b) => {
+        let valA: any = a[collectionSortKey] || ""
+        let valB: any = b[collectionSortKey] || ""
+
+        if (typeof valA === 'string') valA = valA.toLowerCase()
+        if (typeof valB === 'string') valB = valB.toLowerCase()
+
+        if (valA < valB) return collectionSortOrder === 'asc' ? -1 : 1
+        if (valA > valB) return collectionSortOrder === 'asc' ? 1 : -1
+        return 0
+    })
+
     // Add to Collection (Recursive)
+    const getModName = (modId: string) => {
+        const found = installedMods.find(m => m.modId === modId) || collectionMods.find(m => m.modId === modId)
+        return found ? found.name : modId
+    }
+
     const addToCollection = async () => {
         if (!selectedAddon) return
 
@@ -350,24 +431,59 @@ export default function ModsPage() {
                     {/* Collection Tab */}
                     <TabsContent value="collection">
                         <Card className="bg-zinc-800/50 border-zinc-700">
-                            <CardHeader><CardTitle>모드 모음집 (내 리스트)</CardTitle><CardDescription>서버에 적용할 준비가 된 모드 목록입니다.</CardDescription></CardHeader>
+                            <CardHeader>
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <CardTitle>모드 모음집 (내 리스트)</CardTitle>
+                                        <CardDescription>서버에 적용할 준비가 된 모드 목록입니다.</CardDescription>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <Button variant="ghost" size="sm" onClick={() => toggleCollectionSort('name')} className={collectionSortKey === 'name' ? 'bg-zinc-700' : ''}>
+                                            이름순 {collectionSortKey === 'name' && (collectionSortOrder === 'asc' ? '↑' : '↓')}
+                                        </Button>
+                                        <Button variant="ghost" size="sm" onClick={() => toggleCollectionSort('size')} className={collectionSortKey === 'size' ? 'bg-zinc-700' : ''}>
+                                            용량순 {collectionSortKey === 'size' && (collectionSortOrder === 'asc' ? '↑' : '↓')}
+                                        </Button>
+                                    </div>
+                                </div>
+                            </CardHeader>
                             <CardContent>
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead>이름</TableHead>
                                             <TableHead>ID</TableHead>
+                                            <TableHead>용량</TableHead>
                                             <TableHead>상태</TableHead>
                                             <TableHead>관리</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {collectionMods.map(mod => {
+                                        {sortedCollection.map(mod => {
                                             const { isInstalled, isEnabled } = getStatus(mod.modId)
+                                            const installedInfo = installedMods.find(im => im.modId === mod.modId)
+                                            const size = installedInfo?.size || 0
                                             return (
                                                 <TableRow key={mod.modId}>
                                                     <TableCell className="font-medium">{mod.name}</TableCell>
-                                                    <TableCell className="font-mono text-xs">{mod.modId}</TableCell>
+                                                    <TableCell className="font-mono text-xs text-zinc-500">{mod.modId}</TableCell>
+                                                    <TableCell className="text-sm text-zinc-400">{size > 0 ? formatBytes(size) : "-"}</TableCell>
+                                                    <TableCell>
+                                                        <div className="flex flex-wrap gap-1 max-w-[300px]">
+                                                            {mod.dependencies && mod.dependencies.length > 0 ? (
+                                                                mod.dependencies.slice(0, 5).map(depId => (
+                                                                    <Badge key={depId} variant="outline" className="text-[10px] py-0 px-1 bg-zinc-800/50 border-zinc-700 text-zinc-400 whitespace-nowrap" title={depId}>
+                                                                        {getModName(depId)}
+                                                                    </Badge>
+                                                                ))
+                                                            ) : (
+                                                                <span className="text-zinc-600 text-xs">-</span>
+                                                            )}
+                                                            {mod.dependencies && mod.dependencies.length > 5 && (
+                                                                <span className="text-[10px] text-zinc-500">외 {mod.dependencies.length - 5}개</span>
+                                                            )}
+                                                        </div>
+                                                    </TableCell>
                                                     <TableCell>
                                                         <div className="flex gap-2">
                                                             {isInstalled ? <Badge variant="secondary" className="bg-green-500/20 text-green-400">설치됨</Badge> : <Badge variant="secondary" className="bg-zinc-700">미설치</Badge>}
@@ -389,7 +505,7 @@ export default function ModsPage() {
                                                 </TableRow>
                                             )
                                         })}
-                                        {collectionMods.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-8 text-zinc-500">모음집이 비어있습니다. 워크샵 검색 탭에서 추가하세요.</TableCell></TableRow>}
+                                        {collectionMods.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-8 text-zinc-500">모음집이 비어있습니다. 워크샵 검색 탭에서 추가하세요.</TableCell></TableRow>}
                                     </TableBody>
                                 </Table>
                             </CardContent>
@@ -438,38 +554,50 @@ export default function ModsPage() {
                     {/* Enabled Tab */}
                     <TabsContent value="enabled">
                         <Card className="bg-zinc-800/50 border-zinc-700">
-                            <CardHeader><CardTitle>서버 설정 (Enabled Mods)</CardTitle><CardDescription>server.json에 저장된 실제 로드될 모드 목록</CardDescription></CardHeader>
+                            <CardHeader><CardTitle>서버 설정 (Enabled Mods)</CardTitle><CardDescription>server.json에 저장된 실제 로드될 모드 목록 (위쪽이 먼저 로드됨)</CardDescription></CardHeader>
                             <CardContent>
                                 <Table>
-                                    <TableHeader><TableRow><TableHead>목록</TableHead><TableHead>ID</TableHead><TableHead>의존성</TableHead><TableHead className="text-right">관리</TableHead></TableRow></TableHeader>
+                                    <TableHeader><TableRow><TableHead>목록</TableHead><TableHead>ID</TableHead><TableHead>용량</TableHead><TableHead>의존성</TableHead><TableHead className="text-right">순서 / 관리</TableHead></TableRow></TableHeader>
                                     <TableBody>
-                                        {enabledMods.map(mod => {
+                                        {enabledMods.map((mod, index) => {
                                             // Find full info from installed mods to get dependencies
                                             const installedInfo = installedMods.find(im => im.modId === (mod.modId || (mod as any).id))
                                             const deps = installedInfo?.dependencies || []
+                                            const size = installedInfo?.size || 0
 
                                             return (
                                                 <TableRow key={mod.modId}>
-                                                    <TableCell>{mod.name}</TableCell>
+                                                    <TableCell className="font-medium">{mod.name}</TableCell>
                                                     <TableCell className="font-mono text-xs text-zinc-500">{mod.modId}</TableCell>
+                                                    <TableCell className="text-sm text-zinc-400">{size > 0 ? formatBytes(size) : "-"}</TableCell>
                                                     <TableCell>
-                                                        {deps.length > 0 ? (
-                                                            <div className="flex items-center gap-2" title={deps.map(d => installedMods.find(im => im.modId === d)?.name || d).join(", ")}>
-                                                                <Badge variant="secondary" className="bg-blue-500/10 text-blue-400 cursor-help">
-                                                                    {deps.length} Deps
-                                                                </Badge>
-                                                                <span className="text-xs text-zinc-500 truncate max-w-[150px] hidden md:inline-block">
-                                                                    {deps.map(d => installedMods.find(im => im.modId === d)?.name || d).join(", ")}
-                                                                </span>
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-zinc-600 text-xs">-</span>
-                                                        )}
+                                                        <div className="flex flex-wrap gap-1 max-w-[250px]">
+                                                            {deps.length > 0 ? (
+                                                                deps.slice(0, 3).map(depId => (
+                                                                    <Badge key={depId} variant="outline" className="text-[10px] py-0 px-1 bg-blue-500/5 border-blue-500/20 text-blue-400/70 whitespace-nowrap" title={depId}>
+                                                                        {getModName(depId)}
+                                                                    </Badge>
+                                                                ))
+                                                            ) : (
+                                                                <span className="text-zinc-600 text-xs">-</span>
+                                                            )}
+                                                            {deps.length > 3 && (
+                                                                <span className="text-[10px] text-zinc-500">+{deps.length - 3}</span>
+                                                            )}
+                                                        </div>
                                                     </TableCell>
                                                     <TableCell className="text-right">
-                                                        <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 hover:bg-red-900/20" onClick={() => removeEnabledMod(mod.modId)}>
-                                                            <Trash2 className="w-4 h-4 mr-1" /> 제거
-                                                        </Button>
+                                                        <div className="flex justify-end gap-1">
+                                                            <div className="flex gap-0.5 mr-4 border-r border-zinc-700 pr-2">
+                                                                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => moveEnabledMod(index, 'top')} title="맨 위로"><ChevronsUp className="w-4 h-4" /></Button>
+                                                                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => moveEnabledMod(index, 'up')} title="위로"><ChevronUp className="w-4 h-4" /></Button>
+                                                                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => moveEnabledMod(index, 'down')} title="아래로"><ChevronDown className="w-4 h-4" /></Button>
+                                                                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => moveEnabledMod(index, 'bottom')} title="맨 아래로"><ChevronsDown className="w-4 h-4" /></Button>
+                                                            </div>
+                                                            <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 hover:bg-red-900/20" onClick={() => removeEnabledMod(mod.modId)}>
+                                                                <Trash2 className="w-4 h-4 mr-1" /> 제거
+                                                            </Button>
+                                                        </div>
                                                     </TableCell>
                                                 </TableRow>
                                             )
@@ -484,12 +612,13 @@ export default function ModsPage() {
                     <TabsContent value="installed">
                         <Card className="bg-zinc-800/50 border-zinc-700">
                             <CardHeader><CardTitle>디스크에 설치됨</CardTitle><CardDescription>서버 폴더에 실제로 존재하는 모드 파일들</CardDescription></CardHeader>
-                            <CardContent><ScrollArea className="h-[400px]">
+                            <CardContent><ScrollArea className="h-[500px]">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead>이름</TableHead>
                                             <TableHead>ID</TableHead>
+                                            <TableHead>용량</TableHead>
                                             <TableHead>의존성</TableHead>
                                             <TableHead className="text-right">관리</TableHead>
                                         </TableRow>
@@ -497,21 +626,24 @@ export default function ModsPage() {
                                     <TableBody>
                                         {installedMods.map(m => (
                                             <TableRow key={m.modId}>
-                                                <TableCell>{m.name}</TableCell>
-                                                <TableCell className="font-mono text-xs">{m.modId}</TableCell>
+                                                <TableCell className="font-medium">{m.name}</TableCell>
+                                                <TableCell className="font-mono text-xs text-zinc-500">{m.modId}</TableCell>
+                                                <TableCell className="text-sm text-zinc-400">{m.size ? formatBytes(m.size) : "-"}</TableCell>
                                                 <TableCell>
-                                                    {m.dependencies && m.dependencies.length > 0 ? (
-                                                        <div className="flex items-center gap-2" title={m.dependencies.map(d => installedMods.find(im => im.modId === d)?.name || d).join(", ")}>
-                                                            <Badge variant="secondary" className="bg-amber-500/10 text-amber-500 cursor-help">
-                                                                {m.dependencies.length} Deps
-                                                            </Badge>
-                                                            <span className="text-xs text-zinc-500 truncate max-w-[200px] hidden md:inline-block">
-                                                                {m.dependencies.map(d => installedMods.find(im => im.modId === d)?.name || d).join(", ")}
-                                                            </span>
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-zinc-600 text-xs">-</span>
-                                                    )}
+                                                    <div className="flex flex-wrap gap-1 max-w-[250px]">
+                                                        {m.dependencies && m.dependencies.length > 0 ? (
+                                                            m.dependencies.slice(0, 3).map(depId => (
+                                                                <Badge key={depId} variant="outline" className="text-[10px] py-0 px-1 bg-amber-500/5 border-amber-500/20 text-amber-500/70 whitespace-nowrap" title={depId}>
+                                                                    {getModName(depId)}
+                                                                </Badge>
+                                                            ))
+                                                        ) : (
+                                                            <span className="text-zinc-600 text-xs">-</span>
+                                                        )}
+                                                        {m.dependencies && m.dependencies.length > 3 && (
+                                                            <span className="text-[10px] text-zinc-500">+{m.dependencies.length - 3}</span>
+                                                        )}
+                                                    </div>
                                                 </TableCell>
                                                 <TableCell className="text-right">
                                                     <Button size="sm" variant="ghost" className="text-zinc-500 hover:text-red-400" onClick={() => deleteInstalledMod(m.modId)}>

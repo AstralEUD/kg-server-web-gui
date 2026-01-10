@@ -199,64 +199,73 @@ export default function ConfigPage() {
 
         setSyncing(true)
         try {
-            // 1. Enrich mods (get dependencies and scenarios)
-            const enrichRes = await fetch("http://localhost:3000/api/config/enrich", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify({ mods: config.game.mods })
-            })
-
-            if (!enrichRes.ok) {
-                throw new Error("Enrich failed")
-            }
-
-            const enrichData = await enrichRes.json()
-
-            // 2. Get existing collection
+            // 1. Get current collections
             const colRes = await fetch("http://localhost:3000/api/collections", { credentials: "include" })
             const collections = await colRes.json()
 
-            let collectionId = collections?.[0]?.id
-            if (!collectionId) {
-                // Create new collection
+            let targetCollection = collections?.[0]
+            if (!targetCollection) {
+                // Create default collection if none exists
                 const createRes = await fetch("http://localhost:3000/api/collections", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     credentials: "include",
                     body: JSON.stringify({ name: "My Collection", items: [] })
                 })
-                const newCol = await createRes.json()
-                collectionId = newCol.id
+                targetCollection = await createRes.json()
             }
 
-            // 3. Build collection items from enriched mods
-            const items = enrichData.mods.map((m: any) => ({
+            const existingItems = targetCollection.items || []
+            const existingIds = new Set(existingItems.map((item: any) => item.modId))
+
+            // 2. Identify new mods that need enrichment
+            const newMods = config.game.mods.filter(m => !existingIds.has(m.modId))
+
+            if (newMods.length === 0) {
+                alert("모든 모드가 이미 컬렉션에 등록되어 있습니다.")
+                setSyncing(false)
+                return
+            }
+
+            // 3. Enrich only NEW mods
+            const enrichRes = await fetch("http://localhost:3000/api/config/enrich", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ mods: newMods })
+            })
+
+            if (!enrichRes.ok) throw new Error("Enrich failed")
+            const enrichData = await enrichRes.json()
+
+            // 4. Transform enriched mods to collection items
+            const newItems = enrichData.mods.map((m: any) => ({
                 modId: m.modId,
                 name: m.name,
                 version: "",
                 deps: m.dependencies || []
             }))
 
-            // 4. Save to collection
+            // 5. Merge and save
+            const mergedItems = [...existingItems, ...newItems]
+
             await fetch("http://localhost:3000/api/collections", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                credentials: "include",
+                credentials: { "include": true } as any,
                 body: JSON.stringify({
-                    id: collectionId,
-                    name: collections?.[0]?.name || "My Collection",
-                    items: items
+                    id: targetCollection.id,
+                    name: targetCollection.name,
+                    items: mergedItems
                 })
             })
 
-            // 5. Report scenarios found
             const scenarioCount = enrichData.scenarios?.length || 0
-            alert(`동기화 완료!\n- 모드 ${items.length}개가 컬렉션에 추가됨\n- 시나리오 ${scenarioCount}개 발견됨\n\n시나리오 페이지에서 확인할 수 있습니다.`)
+            alert(`동기화 완료!\n- 새 모드 ${newItems.length}개가 추가되었습니다.\n- 총 ${mergedItems.length}개의 모드가 관리 중입니다.\n- 시나리오 ${scenarioCount}개 발견됨.`)
 
         } catch (e) {
             console.error(e)
-            alert("동기화 실패. 콘솔 확인.")
+            alert("동기화 실패. 콘솔을 확인하세요.")
         }
         setSyncing(false)
     }
