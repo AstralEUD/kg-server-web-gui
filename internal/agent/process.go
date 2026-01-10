@@ -1,12 +1,15 @@
 package agent
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/astral/kg-server-web-gui/internal/logs"
 )
 
 // ProcessMonitor handles server process control
@@ -109,9 +112,37 @@ func (p *ProcessMonitor) Start(path string, args []string) error {
 	cmd := exec.Command(exePath, args...)
 	cmd.Dir = filepath.Dir(exePath)
 
+	// Capture stdout and stderr
+	stdout, _ := cmd.StdoutPipe()
+	stderr, _ := cmd.StderrPipe()
+
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("서버 시작 실패: %w", err)
 	}
+
+	// Stream logs in goroutines
+	go func() {
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			logs.GlobalLogs.Info(scanner.Text())
+		}
+	}()
+
+	go func() {
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			logs.GlobalLogs.Error(scanner.Text())
+		}
+	}()
+
+	// Monitor process exit in background to prevent zombies
+	go func() {
+		if err := cmd.Wait(); err != nil {
+			logs.GlobalLogs.Error(fmt.Sprintf("[%s] 서버 비정상 종료: %v", p.Executable, err))
+		} else {
+			logs.GlobalLogs.Info(fmt.Sprintf("[%s] 서버가 종료되었습니다.", p.Executable))
+		}
+	}()
 
 	return nil
 }
