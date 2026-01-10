@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Switch } from "@/components/ui/switch"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Play, Square, RefreshCw, Activity, Terminal, Server, Cpu, HardDrive, Loader2, Download, Trash2, Layers, ChevronRight } from "lucide-react"
 import Link from "next/link"
 
@@ -20,8 +22,6 @@ interface SystemStats {
   networkBytesOut: number
 }
 
-// ... existing code ...
-
 export default function Dashboard() {
   const [status, setStatus] = useState<{ running: boolean; pid: number } | null>(null)
   const [resources, setResources] = useState<SystemStats | null>(null)
@@ -32,7 +32,8 @@ export default function Dashboard() {
   const [servers, setServers] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
 
-  // ... existing functions ...
+  // UI States
+  const [autoScroll, setAutoScroll] = useState(true)
 
   const fetchStatus = async () => {
     try {
@@ -140,9 +141,17 @@ export default function Dashboard() {
     return () => {
       clearInterval(statusInterval)
       clearInterval(resourceInterval)
-      // ...
+      clearInterval(logInterval)
+      clearInterval(steamInterval)
     }
   }, [])
+
+  // Auto-scroll effect
+  useEffect(() => {
+    if (autoScroll && logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: "smooth" })
+    }
+  }, [logs, autoScroll])
 
   // Helper for formatting
   const formatBytes = (bytes: number) => {
@@ -157,7 +166,31 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 text-white p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        {/* ... */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-amber-400 to-orange-500">
+              대시보드
+            </h1>
+            <p className="text-zinc-400 mt-1">서버 상태 및 시스템 리소스 모니터링</p>
+          </div>
+
+          {/* Quick Profile Selector */}
+          {presets.length > 0 && (
+            <div className="flex items-center gap-3 bg-zinc-800/50 p-2 rounded-lg border border-zinc-700">
+              <span className="text-sm text-zinc-400">빠른 프로필 적용:</span>
+              <Select onValueChange={applyPreset}>
+                <SelectTrigger className="w-[200px] h-8 bg-zinc-900 border-zinc-600 text-sm">
+                  <SelectValue placeholder="프로필 선택..." />
+                </SelectTrigger>
+                <SelectContent className="bg-zinc-800 border-zinc-700 text-white">
+                  {presets.map(p => (
+                    <SelectItem key={p.id} value={p.id} className="focus:bg-zinc-700">{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
 
         {/* System Resources */}
         {resources && (
@@ -251,12 +284,13 @@ export default function Dashboard() {
           </Card>
         </div>
 
-        {/* Presets Card */}
+        {/* Existing Presets List (Optional, keeping as secondary view or remove if cluttered) */}
+        {/* Keeping it as it shows proper buttons and link to full page, but maybe reduce size or rely on dropdown */}
         {presets.length > 0 && (
           <Card className="bg-gradient-to-r from-amber-500/10 to-orange-500/5 border-amber-500/30">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-amber-400">
-                <Layers className="w-5 h-5" /> 프리셋
+                <Layers className="w-5 h-5" /> 추천 프리셋
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -274,7 +308,7 @@ export default function Dashboard() {
                   </Button>
                 ))}
                 <Link href="/presets">
-                  <Button variant="ghost" size="sm">모든 프리셋 보기</Button>
+                  <Button variant="ghost" size="sm">모든 프리셋 관리</Button>
                 </Link>
               </div>
             </CardContent>
@@ -323,23 +357,35 @@ export default function Dashboard() {
               <CardTitle className="flex items-center gap-2">
                 <Terminal className="w-5 h-5" /> 콘솔
               </CardTitle>
-              <Button variant="ghost" size="sm" onClick={clearLogs}>
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-zinc-400">자동 스크롤</span>
+                  <Switch className="scale-75" checked={autoScroll} onCheckedChange={setAutoScroll} />
+                </div>
+                <div className="h-4 w-px bg-zinc-700"></div>
+                <Button variant="ghost" size="sm" onClick={clearLogs} className="h-8 w-8 p-0">
+                  <Trash2 className="w-4 h-4 text-zinc-400 hover:text-red-400" />
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-[500px] bg-zinc-900 rounded-lg p-4 font-mono text-sm">
+              {/* Increased height to 600px */}
+              <ScrollArea className="h-[600px] bg-zinc-900 rounded-lg p-4 font-mono text-sm shadow-inner border border-zinc-800">
                 {logs.length === 0 ? (
-                  <p className="text-zinc-500">로그가 없습니다</p>
+                  <div className="flex items-center justify-center h-full text-zinc-600">
+                    <div className="text-center">
+                      <Terminal className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                      <p>로그가 없습니다</p>
+                    </div>
+                  </div>
                 ) : (
                   logs.map((log, i) => (
-                    <div key={i} className="flex gap-2 py-0.5">
-                      <span className="text-zinc-500 shrink-0">[{formatTime(log.timestamp)}]</span>
-                      <span className={
-                        log.level === "ERROR" ? "text-red-400" :
-                          log.level === "WARN" ? "text-yellow-400" :
-                            "text-zinc-300"
-                      }>
+                    <div key={i} className="flex gap-2 py-0.5 hover:bg-zinc-800/30 px-1 rounded">
+                      <span className="text-zinc-600 shrink-0 text-xs mt-0.5 w-[70px]">[{formatTime(log.timestamp)}]</span>
+                      <span className={`break-all ${log.level === "ERROR" ? "text-red-400/90 font-medium" :
+                          log.level === "WARN" ? "text-yellow-400/90" :
+                            "text-zinc-300/90"
+                        }`}>
                         {log.message}
                       </span>
                     </div>

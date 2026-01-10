@@ -44,35 +44,56 @@ func (p *ProcessMonitor) ListScenarios(serverPath string, addonDirs []string) ([
 	return parseScenarios(out.String()), nil
 }
 
-func parseScenarios(output string) []Scenario {
-	var scenarios []Scenario
+	// Vanilla Scenarios
+	vanilla := []Scenario{
+		{ID: "{59AD59368755F41A}Missions/21_GM_Eden.conf", Name: "Game Master: Everon"},
+		{ID: "{9002C691D8861B56}Missions/23_Campaign_North_Central.conf", Name: "Conflict: Arland"},
+		{ID: "{59AD59368755F41A}Missions/23_Campaign.conf", Name: "Conflict: Everon"},
+		{ID: "{59AD59368755F41A}Missions/CombatOps.conf", Name: "Combat Ops: Everon"},
+		{ID: "{9002C691D8861B56}Missions/CombatOps_Arland.conf", Name: "Combat Ops: Arland"},
+	}
+
+	scenariosMap := make(map[string]Scenario)
+	for _, s := range vanilla {
+		scenariosMap[s.ID] = s
+	}
 
 	// Regex for {GUID}Missions/Name.conf
-	// Example: {595F2BF2F4E}Missions/Coop_Fallujah.conf
 	re := regexp.MustCompile(`\{[A-F0-9-]+\}Missions/[^\s]+\.conf`)
 
 	lines := strings.Split(output, "\n")
 	for _, line := range lines {
-		// Clean line
 		line = strings.TrimSpace(line)
-
 		match := re.FindString(line)
 		if match != "" {
-			// Extract name from path for display
-			// e.g. "Missions/Coop_Fallujah.conf" -> "Coop_Fallujah"
 			parts := strings.Split(match, "/")
 			name := match
 			if len(parts) > 1 {
 				name = parts[len(parts)-1]
 				name = strings.TrimSuffix(name, ".conf")
 			}
-
-			scenarios = append(scenarios, Scenario{
-				ID:   match,
-				Name: name,
-			})
+			
+			// Only add if not already present (prioritize CLI output if we want? or Vanilla? 
+			// Actually if CLI finds it, it might have same ID but different name display?
+			// Let's overwrite with CLI found ones as they verify presence.
+			scenariosMap[match] = Scenario{ID: match, Name: name}
 		}
+	}
+
+	// Convert map to slice
+	var scenarios []Scenario
+	// First add vanilla ones to ensure order (if they exist in map)
+	for _, v := range vanilla {
+		if s, ok := scenariosMap[v.ID]; ok {
+			scenarios = append(scenarios, s)
+			delete(scenariosMap, v.ID)
+		}
+	}
+	// Add remaining
+	for _, s := range scenariosMap {
+		scenarios = append(scenarios, s)
 	}
 
 	return scenarios
 }
+

@@ -1,61 +1,32 @@
 package config
 
 // ServerConfig represents the complete Arma Reforger server.json structure
-// Based on Longbow tool and official documentation
 type ServerConfig struct {
-	// Root level (used for direct parameters)
-	DedicatedServerID string `json:"dedicatedServerId,omitempty"`
-	Region            string `json:"region,omitempty"`
-	GameHostBindAddr  string `json:"gameHostBindAddress,omitempty"`
-	GameHostBindPort  int    `json:"gameHostBindPort,omitempty"`
-	GameHostRegPort   int    `json:"gameHostRegisterBindPort,omitempty"`
-	AdminPassword     string `json:"adminPassword,omitempty"`
+	BindAddress   string `json:"bindAddress,omitempty"`
+	BindPort      int    `json:"bindPort,omitempty"`
+	PublicAddress string `json:"publicAddress,omitempty"`
+	PublicPort    int    `json:"publicPort,omitempty"`
 
-	// Game section
-	Game GameConfig `json:"game"`
-
-	// A2S (Steam Query) section
-	A2S A2SConfig `json:"a2s,omitempty"`
-
-	// RCON section
-	RCON RCONConfig `json:"rcon,omitempty"`
-
-	// Operating section
+	A2S       A2SConfig       `json:"a2s,omitempty"`
+	Game      GameConfig      `json:"game"`
 	Operating OperatingConfig `json:"operating,omitempty"`
 }
 
 type GameConfig struct {
-	Name                  string     `json:"name"`
-	Password              string     `json:"password,omitempty"`
-	ScenarioID            string     `json:"scenarioId"`
-	MaxPlayers            int        `json:"maxPlayers"`
-	Visible               bool       `json:"visible"`
-	CrossPlatform         bool       `json:"crossPlatform"`
-	SupportedPlatforms    []string   `json:"supportedPlatforms,omitempty"`
-	GameProperties        GameProps  `json:"gameProperties"`
+	Name               string   `json:"name"`
+	Password           string   `json:"password,omitempty"`
+	PasswordAdmin      string   `json:"passwordAdmin,omitempty"`
+	Admins             []string `json:"admins,omitempty"`
+	ScenarioID         string   `json:"scenarioId"`
+	MaxPlayers         int      `json:"maxPlayers"`
+	Visible            bool     `json:"visible"`
+	CrossPlatform      bool     `json:"crossPlatform"`
+	SupportedPlatforms []string `json:"supportedPlatforms,omitempty"`
+
+	GameProperties GameProps `json:"gameProperties"`
+
 	Mods                  []ModEntry `json:"mods,omitempty"`
 	ModsRequiredByDefault bool       `json:"modsRequiredByDefault"`
-
-	// Admins
-	Admins []string `json:"admins,omitempty"`
-
-	// VON settings
-	DisableVON                 bool `json:"disableVON"`
-	VONDisableUI               bool `json:"VONDisableUI"`
-	VONDisableDirectSpeechUI   bool `json:"VONDisableDirectSpeechUI"`
-	VONCanTransmitCrossFaction bool `json:"VONCanTransmitCrossFaction"`
-
-	// BattlEye
-	BattlEye bool `json:"battlEye"`
-
-	// Third person
-	DisableThirdPerson bool `json:"disableThirdPerson"`
-
-	// Fast validation
-	FastValidation bool `json:"fastValidation"`
-
-	// Lobby settings
-	LobbyPlayerSynchronise bool `json:"lobbyPlayerSynchronise"`
 }
 
 type GameProps struct {
@@ -68,12 +39,33 @@ type GameProps struct {
 	VONDisableUI               bool `json:"VONDisableUI"`
 	VONDisableDirectSpeechUI   bool `json:"VONDisableDirectSpeechUI"`
 	VONCanTransmitCrossFaction bool `json:"VONCanTransmitCrossFaction"`
+
+	Persistence   PersistenceConfig   `json:"persistence,omitempty"`
+	MissionHeader MissionHeaderConfig `json:"missionHeader,omitempty"`
 }
+
+type PersistenceConfig struct {
+	AutoSaveInterval int `json:"autoSaveInterval"`
+}
+
+type MissionHeaderConfig struct {
+	// Using map for flexibility as this can vary
+	MissionHeader map[string]interface{} `json:"missionHeader,omitempty"` // Wait, user sample has flat fields inside missionHeader
+	// Let's explicitly define common fields based on user sample
+	Name        string `json:"m_sName,omitempty"`
+	Author      string `json:"m_sAuthor,omitempty"`
+	PlayerCount int    `json:"m_iPlayerCount,omitempty"`
+}
+
+// Custom Unmarshal for MissionHeader to capture all fields?
+// For now let's just use map[string]interface{} or specific struct if we want.
+// User sample: m_sName, m_sAuthor, m_sDescription, m_sDetails, m_iPlayerCount, etc.
+// Let's use a struct with fields matching the user sample for now.
 
 type ModEntry struct {
 	ModID    string `json:"modId"`
 	Name     string `json:"name,omitempty"`
-	Version  string `json:"version,omitempty"`
+	Version  string `json:"version,omitempty"` // For info
 	Required bool   `json:"required,omitempty"`
 }
 
@@ -82,41 +74,22 @@ type A2SConfig struct {
 	Port    int    `json:"port,omitempty"`
 }
 
-type RCONConfig struct {
-	Address    string   `json:"address,omitempty"`
-	Port       int      `json:"port,omitempty"`
-	Password   string   `json:"password,omitempty"`
-	MaxClients int      `json:"maxClients,omitempty"`
-	Permission string   `json:"permission,omitempty"` // ADMIN, MONITOR
-	Blacklist  []string `json:"blacklist,omitempty"`
-	Whitelist  []string `json:"whitelist,omitempty"`
+type OperatingConfig struct {
+	LobbyPlayerSynchronise bool `json:"lobbyPlayerSynchronise"`
+	PlayerSaveTime         int  `json:"playerSaveTime"`
+	AILimit                int  `json:"aiLimit"`
+	SlotReservationTimeout int  `json:"slotReservationTimeout"`
+	DisableServerShutdown  bool `json:"disableServerShutdown"`
+	DisableCrashReporter   bool `json:"disableCrashReporter"`
+	DisableAI              bool `json:"disableAI"`
+
+	JoinQueue JoinQueueConfig `json:"joinQueue"`
+
+	DisableNavmeshStreaming []string `json:"disableNavmeshStreaming,omitempty"` // Array in user sample
 }
 
-type OperatingConfig struct {
-	// Auto save settings
-	AutoSaveInterval int      `json:"interval,omitempty"` // minutes
-	Databases        []string `json:"databases,omitempty"`
-	Storages         []string `json:"storages,omitempty"`
-
-	// Player settings
-	PlayerSaveTime         int `json:"playerSaveTime,omitempty"`
-	SlotReservationTimeout int `json:"slotReservationTimeout,omitempty"`
-
-	// Disable settings
-	DisableAI                       bool `json:"disableAI,omitempty"`
-	DisableServerShutdown           bool `json:"disableServerShutdown,omitempty"`
-	DisableNavmeshStreaming         bool `json:"disableNavmeshStreaming,omitempty"`
-	DisableSpecificNavmeshStreaming int  `json:"disableSpecificNavmeshStreaming,omitempty"`
-	DisableCrashReporter            bool `json:"disableCrashReporter,omitempty"`
-
-	// AI settings
-	AILimit int `json:"aiLimit,omitempty"`
-
-	// Queue settings
-	JoinQueueMaxSize int `json:"joinQueueMaxSize,omitempty"`
-
-	// Hive ID
-	HiveID string `json:"hiveID,omitempty"`
+type JoinQueueConfig struct {
+	MaxSize int `json:"maxSize"`
 }
 
 // AdvancedSettings represents Longbow-style advanced server launch parameters

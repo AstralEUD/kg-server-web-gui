@@ -8,85 +8,104 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Upload, Save, Settings, Globe, Shield, Gamepad2, Cpu, Radio, Database, Loader2 } from "lucide-react"
+import { Upload, Save, Settings, Globe, Gamepad2, Cpu, Radio, Database, Loader2 } from "lucide-react"
 
 interface ServerConfig {
+    bindAddress?: string
+    bindPort?: number
+    publicAddress?: string
+    publicPort?: number
     game: {
         name: string
-        password: string
+        password?: string
+        passwordAdmin?: string
         scenarioId: string
         maxPlayers: number
         visible: boolean
         crossPlatform: boolean
         modsRequiredByDefault: boolean
         admins: string[]
-        battlEye: boolean
-        disableThirdPerson: boolean
-        fastValidation: boolean
-        lobbyPlayerSynchronise: boolean
-        VONDisableUI: boolean
-        VONDisableDirectSpeechUI: boolean
-        VONCanTransmitCrossFaction: boolean
         gameProperties: {
             serverMaxViewDistance: number
             serverMinGrassDistance: number
             networkViewDistance: number
+            disableThirdPerson: boolean
+            fastValidation: boolean
+            battlEye: boolean
+            VONDisableUI: boolean
+            VONDisableDirectSpeechUI: boolean
+            VONCanTransmitCrossFaction: boolean
+            persistence?: {
+                autoSaveInterval: number
+            }
+            missionHeader?: {
+                m_sName?: string
+                m_sAuthor?: string
+                m_iPlayerCount?: number
+            }
         }
-        mods: { modId: string; name?: string }[]
+        mods: { modId: string; name?: string; required?: boolean }[]
     }
-    a2s: {
+    a2s?: {
         address: string
         port: number
-    }
-    rcon: {
-        address: string
-        port: number
-        password: string
-        maxClients: number
-        permission: string
-        blacklist: string[]
-        whitelist: string[]
     }
     operating: {
-        interval: number
+        lobbyPlayerSynchronise: boolean
         playerSaveTime: number
-        disableAI: boolean
         aiLimit: number
-        joinQueueMaxSize: number
         slotReservationTimeout: number
         disableServerShutdown: boolean
         disableCrashReporter: boolean
-        disableNavmeshStreaming: boolean
+        disableAI: boolean
+        joinQueue: {
+            maxSize: number
+        }
     }
 }
 
 const defaultConfig: ServerConfig = {
+    bindAddress: "0.0.0.0",
+    bindPort: 2001,
+    publicAddress: "",
+    publicPort: 2001,
     game: {
         name: "",
         password: "",
+        passwordAdmin: "",
         scenarioId: "",
         maxPlayers: 64,
         visible: true,
         crossPlatform: true,
-        modsRequiredByDefault: false,
+        modsRequiredByDefault: true,
         admins: [],
-        battlEye: true,
-        disableThirdPerson: false,
-        fastValidation: true,
-        lobbyPlayerSynchronise: true,
-        VONDisableUI: false,
-        VONDisableDirectSpeechUI: false,
-        VONCanTransmitCrossFaction: false,
         gameProperties: {
             serverMaxViewDistance: 1600,
             serverMinGrassDistance: 50,
             networkViewDistance: 1500,
+            disableThirdPerson: false,
+            fastValidation: true,
+            battlEye: false,
+            VONDisableUI: false,
+            VONDisableDirectSpeechUI: true,
+            VONCanTransmitCrossFaction: true,
+            persistence: {
+                autoSaveInterval: 10
+            }
         },
         mods: [],
     },
-    a2s: { address: "", port: 17777 },
-    rcon: { address: "", port: 19999, password: "", maxClients: 16, permission: "MONITOR", blacklist: [], whitelist: [] },
-    operating: { interval: 30, playerSaveTime: 120, disableAI: false, aiLimit: -1, joinQueueMaxSize: 0, slotReservationTimeout: 60, disableServerShutdown: false, disableCrashReporter: false, disableNavmeshStreaming: false },
+    a2s: { address: "0.0.0.0", port: 17777 },
+    operating: {
+        lobbyPlayerSynchronise: true,
+        playerSaveTime: 300,
+        aiLimit: -1,
+        slotReservationTimeout: 60,
+        disableServerShutdown: true,
+        disableCrashReporter: false,
+        disableAI: false,
+        joinQueue: { maxSize: 0 }
+    },
 }
 
 export default function ConfigPage() {
@@ -105,6 +124,11 @@ export default function ConfigPage() {
             const res = await fetch("http://localhost:3000/api/config", { credentials: "include" })
             if (res.ok) {
                 const data = await res.json()
+                // Ensure nested objects exist to avoid crashes
+                if (!data.game.gameProperties) data.game.gameProperties = defaultConfig.game.gameProperties
+                if (!data.operating) data.operating = defaultConfig.operating
+                if (!data.operating.joinQueue) data.operating.joinQueue = defaultConfig.operating.joinQueue
+
                 setConfig({ ...defaultConfig, ...data })
                 setAdminsText(data.game?.admins?.join("\n") || "")
             }
@@ -124,8 +148,10 @@ export default function ConfigPage() {
                 credentials: "include",
                 body: JSON.stringify(updatedConfig),
             })
+            alert("설정이 저장되었습니다.")
         } catch (e) {
             console.error("설정 저장 실패", e)
+            alert("설정 저장 실패")
         }
         setSaving(false)
     }
@@ -134,19 +160,11 @@ export default function ConfigPage() {
         setConfig(prev => ({ ...prev, game: { ...prev.game, [field]: value } }))
     }
 
-    const updateGameProps = (field: keyof ServerConfig["game"]["gameProperties"], value: number) => {
+    const updateGameProps = (field: keyof ServerConfig["game"]["gameProperties"], value: any) => {
         setConfig(prev => ({
             ...prev,
             game: { ...prev.game, gameProperties: { ...prev.game.gameProperties, [field]: value } },
         }))
-    }
-
-    const updateRcon = (field: keyof ServerConfig["rcon"], value: any) => {
-        setConfig(prev => ({ ...prev, rcon: { ...prev.rcon, [field]: value } }))
-    }
-
-    const updateA2s = (field: keyof ServerConfig["a2s"], value: any) => {
-        setConfig(prev => ({ ...prev, a2s: { ...prev.a2s, [field]: value } }))
     }
 
     const updateOperating = (field: keyof ServerConfig["operating"], value: any) => {
@@ -188,11 +206,10 @@ export default function ConfigPage() {
                     <TabsList className="bg-zinc-800/50 p-1 rounded-lg">
                         <TabsTrigger value="server" className="gap-2"><Settings className="w-4 h-4" /> 일반</TabsTrigger>
                         <TabsTrigger value="network" className="gap-2"><Globe className="w-4 h-4" /> 네트워크</TabsTrigger>
-                        <TabsTrigger value="rcon" className="gap-2"><Shield className="w-4 h-4" /> RCON</TabsTrigger>
-                        <TabsTrigger value="game" className="gap-2"><Gamepad2 className="w-4 h-4" /> 게임</TabsTrigger>
+                        <TabsTrigger value="game" className="gap-2"><Gamepad2 className="w-4 h-4" /> 게임 Play</TabsTrigger>
                         <TabsTrigger value="performance" className="gap-2"><Cpu className="w-4 h-4" /> 성능</TabsTrigger>
                         <TabsTrigger value="von" className="gap-2"><Radio className="w-4 h-4" /> 음성(VON)</TabsTrigger>
-                        <TabsTrigger value="advanced" className="gap-2"><Database className="w-4 h-4" /> 고급</TabsTrigger>
+                        <TabsTrigger value="operating" className="gap-2"><Database className="w-4 h-4" /> 운영</TabsTrigger>
                     </TabsList>
 
                     {/* Server Tab */}
@@ -210,6 +227,10 @@ export default function ConfigPage() {
                                     <div className="space-y-2">
                                         <Label>서버 비밀번호</Label>
                                         <Input type="password" placeholder="Optional" value={config.game.password} onChange={e => updateGame("password", e.target.value)} className="bg-zinc-900 border-zinc-700" />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>관리자 비밀번호</Label>
+                                        <Input type="password" placeholder="Admin Password" value={config.game.passwordAdmin} onChange={e => updateGame("passwordAdmin", e.target.value)} className="bg-zinc-900 border-zinc-700" />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>최대 플레이어 수</Label>
@@ -251,19 +272,19 @@ export default function ConfigPage() {
                                 <CardContent className="space-y-4">
                                     <div className="space-y-2">
                                         <Label>바인드 주소 (Bind Address)</Label>
-                                        <Input placeholder="0.0.0.0" className="bg-zinc-900 border-zinc-700" />
+                                        <Input value={config.bindAddress} onChange={e => setConfig({ ...config, bindAddress: e.target.value })} placeholder="0.0.0.0" className="bg-zinc-900 border-zinc-700" />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>바인드 포트</Label>
-                                        <Input type="number" defaultValue={2001} className="bg-zinc-900 border-zinc-700" />
+                                        <Input type="number" value={config.bindPort} onChange={e => setConfig({ ...config, bindPort: parseInt(e.target.value) })} className="bg-zinc-900 border-zinc-700" />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>공개 주소 (Public Address)</Label>
-                                        <Input placeholder="자동 감지" className="bg-zinc-900 border-zinc-700" />
+                                        <Input value={config.publicAddress} onChange={e => setConfig({ ...config, publicAddress: e.target.value })} placeholder="자동 감지" className="bg-zinc-900 border-zinc-700" />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>공개 포트</Label>
-                                        <Input type="number" defaultValue={2001} className="bg-zinc-900 border-zinc-700" />
+                                        <Input type="number" value={config.publicPort} onChange={e => setConfig({ ...config, publicPort: parseInt(e.target.value) })} className="bg-zinc-900 border-zinc-700" />
                                     </div>
                                 </CardContent>
                             </Card>
@@ -273,71 +294,22 @@ export default function ConfigPage() {
                                 <CardContent className="space-y-4">
                                     <div className="space-y-2">
                                         <Label>A2S 주소</Label>
-                                        <Input value={config.a2s.address} onChange={e => updateA2s("address", e.target.value)} placeholder="0.0.0.0" className="bg-zinc-900 border-zinc-700" />
+                                        <Input value={config.a2s?.address} onChange={e => setConfig({ ...config, a2s: { ...config.a2s!, address: e.target.value } })} placeholder="0.0.0.0" className="bg-zinc-900 border-zinc-700" />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>A2S 포트</Label>
-                                        <Input type="number" value={config.a2s.port} onChange={e => updateA2s("port", parseInt(e.target.value))} className="bg-zinc-900 border-zinc-700" />
+                                        <Input type="number" value={config.a2s?.port} onChange={e => setConfig({ ...config, a2s: { ...config.a2s!, port: parseInt(e.target.value) } })} className="bg-zinc-900 border-zinc-700" />
                                     </div>
                                 </CardContent>
                             </Card>
                         </div>
                     </TabsContent>
 
-                    {/* RCON Tab */}
-                    <TabsContent value="rcon">
-                        <Card className="bg-zinc-800/50 border-zinc-700">
-                            <CardHeader><CardTitle>RCON 설정</CardTitle></CardHeader>
-                            <CardContent>
-                                <div className="grid gap-6 md:grid-cols-2">
-                                    <div className="space-y-4">
-                                        <div className="space-y-2">
-                                            <Label>RCON 주소</Label>
-                                            <Input value={config.rcon.address} onChange={e => updateRcon("address", e.target.value)} placeholder="0.0.0.0" className="bg-zinc-900 border-zinc-700" />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label>RCON 포트</Label>
-                                            <Input type="number" value={config.rcon.port} onChange={e => updateRcon("port", parseInt(e.target.value))} className="bg-zinc-900 border-zinc-700" />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label>RCON 비밀번호</Label>
-                                            <Input type="password" value={config.rcon.password} onChange={e => updateRcon("password", e.target.value)} className="bg-zinc-900 border-zinc-700" />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label>최대 클라이언트 수</Label>
-                                            <Input type="number" value={config.rcon.maxClients} onChange={e => updateRcon("maxClients", parseInt(e.target.value))} className="bg-zinc-900 border-zinc-700" />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label>권한 수준</Label>
-                                            <Select value={config.rcon.permission} onValueChange={v => updateRcon("permission", v)}>
-                                                <SelectTrigger className="bg-zinc-900 border-zinc-700"><SelectValue /></SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="MONITOR">모니터링 (MONITOR)</SelectItem>
-                                                    <SelectItem value="ADMIN">관리자 (ADMIN)</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-4">
-                                        <div className="space-y-2">
-                                            <Label>차단 목록 (Blacklist IP)</Label>
-                                            <textarea className="w-full h-24 bg-zinc-900 border border-zinc-700 rounded-md p-2 text-sm" placeholder="한 줄에 하나씩 IP 입력" />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label>허용 목록 (Whitelist IP)</Label>
-                                            <textarea className="w-full h-24 bg-zinc-900 border border-zinc-700 rounded-md p-2 text-sm" placeholder="한 줄에 하나씩 IP 입력" />
-                                        </div>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-
-                    {/* Game Tab */}
+                    {/* Game Play Tab */}
                     <TabsContent value="game">
                         <div className="grid gap-6 md:grid-cols-2">
                             <Card className="bg-zinc-800/50 border-zinc-700">
-                                <CardHeader><CardTitle>게임 설정</CardTitle></CardHeader>
+                                <CardHeader><CardTitle>게임 플레이 설정</CardTitle></CardHeader>
                                 <CardContent className="space-y-4">
                                     <div className="flex items-center justify-between">
                                         <Label>모드 필수 적용 (Mods Required by Default)</Label>
@@ -345,25 +317,21 @@ export default function ConfigPage() {
                                     </div>
                                     <div className="flex items-center justify-between">
                                         <Label>BattlEye 활성화</Label>
-                                        <Switch checked={config.game.battlEye} onCheckedChange={v => updateGame("battlEye", v)} />
+                                        <Switch checked={config.game.gameProperties.battlEye} onCheckedChange={v => updateGameProps("battlEye", v)} />
                                     </div>
                                     <div className="flex items-center justify-between">
                                         <Label>3인칭 시점 비활성화</Label>
-                                        <Switch checked={config.game.disableThirdPerson} onCheckedChange={v => updateGame("disableThirdPerson", v)} />
+                                        <Switch checked={config.game.gameProperties.disableThirdPerson} onCheckedChange={v => updateGameProps("disableThirdPerson", v)} />
                                     </div>
                                     <div className="flex items-center justify-between">
                                         <Label>빠른 검증 (Fast Validation)</Label>
-                                        <Switch checked={config.game.fastValidation} onCheckedChange={v => updateGame("fastValidation", v)} />
-                                    </div>
-                                    <div className="flex items-center justify-between">
-                                        <Label>로비 플레이어 동기화</Label>
-                                        <Switch checked={config.game.lobbyPlayerSynchronise} onCheckedChange={v => updateGame("lobbyPlayerSynchronise", v)} />
+                                        <Switch checked={config.game.gameProperties.fastValidation} onCheckedChange={v => updateGameProps("fastValidation", v)} />
                                     </div>
                                 </CardContent>
                             </Card>
 
                             <Card className="bg-zinc-800/50 border-zinc-700">
-                                <CardHeader><CardTitle>AI 및 플레이어 설정</CardTitle></CardHeader>
+                                <CardHeader><CardTitle>AI 및 봇 설정</CardTitle></CardHeader>
                                 <CardContent className="space-y-4">
                                     <div className="flex items-center justify-between">
                                         <Label>AI 비활성화</Label>
@@ -372,14 +340,6 @@ export default function ConfigPage() {
                                     <div className="space-y-2">
                                         <Label>AI 제한 (-1 = 기본값)</Label>
                                         <Input type="number" value={config.operating.aiLimit} onChange={e => updateOperating("aiLimit", parseInt(e.target.value))} className="bg-zinc-900 border-zinc-700" />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label>슬롯 예약 시간 제한 (초)</Label>
-                                        <Input type="number" value={config.operating.slotReservationTimeout} onChange={e => updateOperating("slotReservationTimeout", parseInt(e.target.value))} className="bg-zinc-900 border-zinc-700" />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label>접속 대기열 최대 크기</Label>
-                                        <Input type="number" value={config.operating.joinQueueMaxSize} onChange={e => updateOperating("joinQueueMaxSize", parseInt(e.target.value))} className="bg-zinc-900 border-zinc-700" />
                                     </div>
                                 </CardContent>
                             </Card>
@@ -416,30 +376,34 @@ export default function ConfigPage() {
                             <CardContent className="space-y-4">
                                 <div className="flex items-center justify-between">
                                     <Label>UI 비활성화 (VON Disable UI)</Label>
-                                    <Switch checked={config.game.VONDisableUI} onCheckedChange={v => updateGame("VONDisableUI", v)} />
+                                    <Switch checked={config.game.gameProperties.VONDisableUI} onCheckedChange={v => updateGameProps("VONDisableUI", v)} />
                                 </div>
                                 <div className="flex items-center justify-between">
                                     <Label>직접 대화 UI 비활성화</Label>
-                                    <Switch checked={config.game.VONDisableDirectSpeechUI} onCheckedChange={v => updateGame("VONDisableDirectSpeechUI", v)} />
+                                    <Switch checked={config.game.gameProperties.VONDisableDirectSpeechUI} onCheckedChange={v => updateGameProps("VONDisableDirectSpeechUI", v)} />
                                 </div>
                                 <div className="flex items-center justify-between">
                                     <Label>진영 간 음성 전송 허용</Label>
-                                    <Switch checked={config.game.VONCanTransmitCrossFaction} onCheckedChange={v => updateGame("VONCanTransmitCrossFaction", v)} />
+                                    <Switch checked={config.game.gameProperties.VONCanTransmitCrossFaction} onCheckedChange={v => updateGameProps("VONCanTransmitCrossFaction", v)} />
                                 </div>
                             </CardContent>
                         </Card>
                     </TabsContent>
 
-                    {/* Advanced Tab */}
-                    <TabsContent value="advanced">
+                    {/* Operating Tab */}
+                    <TabsContent value="operating">
                         <Card className="bg-zinc-800/50 border-zinc-700">
-                            <CardHeader><CardTitle>고급 설정</CardTitle></CardHeader>
+                            <CardHeader><CardTitle>운영 및 저장 설정</CardTitle></CardHeader>
                             <CardContent>
                                 <div className="grid gap-6 md:grid-cols-2">
                                     <div className="space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <Label>로비 플레이어 동기화</Label>
+                                            <Switch checked={config.operating.lobbyPlayerSynchronise} onCheckedChange={v => updateOperating("lobbyPlayerSynchronise", v)} />
+                                        </div>
                                         <div className="space-y-2">
                                             <Label>자동 저장 간격 (분)</Label>
-                                            <Input type="number" value={config.operating.interval} onChange={e => updateOperating("interval", parseInt(e.target.value))} className="bg-zinc-900 border-zinc-700" />
+                                            <Input type="number" value={config.game.gameProperties.persistence?.autoSaveInterval || 10} onChange={e => setConfig(prev => ({ ...prev, game: { ...prev.game, gameProperties: { ...prev.game.gameProperties, persistence: { autoSaveInterval: parseInt(e.target.value) } } } }))} className="bg-zinc-900 border-zinc-700" />
                                         </div>
                                         <div className="space-y-2">
                                             <Label>플레이어 저장 시간 (초)</Label>
@@ -448,16 +412,20 @@ export default function ConfigPage() {
                                     </div>
                                     <div className="space-y-4">
                                         <div className="flex items-center justify-between">
-                                            <Label>서버 종료 기능 비활성화</Label>
+                                            <Label>서버 종료 버튼 비활성화</Label>
                                             <Switch checked={config.operating.disableServerShutdown} onCheckedChange={v => updateOperating("disableServerShutdown", v)} />
                                         </div>
                                         <div className="flex items-center justify-between">
                                             <Label>크래시 리포터 비활성화</Label>
                                             <Switch checked={config.operating.disableCrashReporter} onCheckedChange={v => updateOperating("disableCrashReporter", v)} />
                                         </div>
-                                        <div className="flex items-center justify-between">
-                                            <Label>내비메시 스트리밍 비활성화</Label>
-                                            <Switch checked={config.operating.disableNavmeshStreaming} onCheckedChange={v => updateOperating("disableNavmeshStreaming", v)} />
+                                        <div className="space-y-2">
+                                            <Label>슬롯 예약 타임아웃 (초)</Label>
+                                            <Input type="number" value={config.operating.slotReservationTimeout} onChange={e => updateOperating("slotReservationTimeout", parseInt(e.target.value))} className="bg-zinc-900 border-zinc-700" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>접속 대기열 최대 크기</Label>
+                                            <Input type="number" value={config.operating.joinQueue?.maxSize || 0} onChange={e => setConfig(prev => ({ ...prev, operating: { ...prev.operating, joinQueue: { maxSize: parseInt(e.target.value) } } }))} className="bg-zinc-900 border-zinc-700" />
                                         </div>
                                     </div>
                                 </div>
