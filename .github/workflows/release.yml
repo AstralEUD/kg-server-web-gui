@@ -45,7 +45,7 @@ jobs:
         with:
           files: ServerManager.exe
           name: Release ${{ github.ref_name }}
+          tag_name: ${{ github.ref }}
           draft: false
           prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
