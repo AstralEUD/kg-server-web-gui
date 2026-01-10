@@ -99,6 +99,28 @@ func (sm *SettingsManager) Load() error {
 		}
 	}
 
+	// Auto-detect other paths based on ServerPath if they are empty
+	if sm.settings.ServerPath != "" {
+		changed := false
+		if sm.settings.AddonsPath == "" {
+			sm.settings.AddonsPath = filepath.Join(sm.settings.ServerPath, "addons")
+			changed = true
+		}
+		if sm.settings.ProfilesPath == "" {
+			// Profile default is usually usually in Documents/My Games/ArmaReforger...
+			// BUT for dedicated server, -profile defaults to the folder where command is run + "profile" usually,
+			// OR we can default it to ServerPath/profile for portability.
+			// Let's stick to CWD logic for profile if not set, or ServerPath/profile.
+			// Given router.go sets it to CWD/profile, we might leave it or set it to ServerPath/profile.
+			// Let's set it to ServerPath/profile to keep it consistent with the server.
+			sm.settings.ProfilesPath = filepath.Join(sm.settings.ServerPath, "profile")
+			changed = true
+		}
+		if changed {
+			sm.Save()
+		}
+	}
+
 	return nil
 }
 
