@@ -44,6 +44,7 @@ func (p *ProcessMonitor) ListScenarios(serverPath string, addonDirs []string) ([
 	return parseScenarios(out.String()), nil
 }
 
+func parseScenarios(output string) []Scenario {
 	// Vanilla Scenarios
 	vanilla := []Scenario{
 		{ID: "{59AD59368755F41A}Missions/21_GM_Eden.conf", Name: "Game Master: Everon"},
@@ -72,8 +73,8 @@ func (p *ProcessMonitor) ListScenarios(serverPath string, addonDirs []string) ([
 				name = parts[len(parts)-1]
 				name = strings.TrimSuffix(name, ".conf")
 			}
-			
-			// Only add if not already present (prioritize CLI output if we want? or Vanilla? 
+
+			// Only add if not already present (prioritize CLI output if we want? or Vanilla?
 			// Actually if CLI finds it, it might have same ID but different name display?
 			// Let's overwrite with CLI found ones as they verify presence.
 			scenariosMap[match] = Scenario{ID: match, Name: name}
@@ -96,4 +97,3 @@ func (p *ProcessMonitor) ListScenarios(serverPath string, addonDirs []string) ([
 
 	return scenarios
 }
-
