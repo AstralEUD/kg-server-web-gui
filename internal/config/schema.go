@@ -13,15 +13,17 @@ type ServerConfig struct {
 }
 
 type GameConfig struct {
-	Name               string   `json:"name"`
-	Password           string   `json:"password,omitempty"`
-	PasswordAdmin      string   `json:"passwordAdmin,omitempty"`
-	Admins             []string `json:"admins,omitempty"`
-	ScenarioID         string   `json:"scenarioId"`
-	MaxPlayers         int      `json:"maxPlayers"`
-	Visible            bool     `json:"visible"`
-	CrossPlatform      bool     `json:"crossPlatform"`
-	SupportedPlatforms []string `json:"supportedPlatforms,omitempty"`
+	Name          string `json:"name"`
+	Password      string `json:"password,omitempty"`
+	PasswordAdmin string `json:"passwordAdmin,omitempty"`
+	RconPassword  string `json:"rconPassword,omitempty"`
+	RconPort      int    `json:"rconPort,omitempty"`
+	// Admins             []string `json:"admins,omitempty"` // Deprecated/Separate config
+	ScenarioID    string `json:"scenarioId"`
+	MaxPlayers    int    `json:"maxPlayers"`
+	Visible       bool   `json:"visible"`
+	CrossPlatform bool   `json:"crossPlatform"`
+	// SupportedPlatforms []string `json:"supportedPlatforms,omitempty"` // Engine warning
 
 	GameProperties GameProps `json:"gameProperties"`
 

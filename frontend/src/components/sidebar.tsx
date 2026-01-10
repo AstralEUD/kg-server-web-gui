@@ -1,11 +1,11 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { cn } from "@/lib/utils"
 import {
     LayoutDashboard, Settings, Package, Map, Sliders,
-    HardDrive, Layers, LogOut, User, ChevronDown, Cog
+    HardDrive, Layers, LogOut, User, ChevronDown, Cog, Server as ServerIcon, Plus
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import {
@@ -15,6 +15,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Button } from "@/components/ui/button"
 
 const navItems = [
     { href: "/", label: "대시보드", icon: LayoutDashboard },
@@ -30,8 +31,14 @@ const navItems = [
 export function Sidebar() {
     const pathname = usePathname()
     const router = useRouter()
+    const searchParams = useSearchParams()
     const [username, setUsername] = useState<string | null>(null)
     const [role, setRole] = useState<string | null>(null)
+    const [servers, setServers] = useState<any[]>([])
+    const [currentServer, setCurrentServer] = useState<any>(null)
+
+    // Get server ID from URL or default
+    const serverId = searchParams.get('server') || 'default'
 
     useEffect(() => {
         const storedUsername = localStorage.getItem("username")
@@ -40,7 +47,31 @@ export function Sidebar() {
             setUsername(storedUsername)
             setRole(storedRole)
         }
+        fetchServers()
     }, [])
+
+    useEffect(() => {
+        if (servers.length > 0) {
+            const found = servers.find(s => s.id === serverId) || servers.find(s => s.id === 'default')
+            setCurrentServer(found)
+        }
+    }, [servers, serverId])
+
+    const fetchServers = async () => {
+        try {
+            const res = await fetch("http://localhost:3000/api/servers", { credentials: "include" })
+            if (res.ok) {
+                const data = await res.json()
+                setServers(data || [])
+            }
+        } catch (e) { }
+    }
+
+    const handleServerSwitch = (id: string) => {
+        const params = new URLSearchParams(searchParams.toString())
+        params.set('server', id)
+        router.push(`${pathname}?${params.toString()}`)
+    }
 
     const handleLogout = async () => {
         try {
@@ -73,16 +104,51 @@ export function Sidebar() {
                         <div className="text-xs text-zinc-500">서버 관리 패널</div>
                     </div>
                 </div>
+
+                {/* Server Selector */}
+                <div className="mt-4">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" className="w-full justify-between bg-zinc-900/50 border-zinc-700 hover:bg-zinc-800 h-9">
+                                <span className="flex items-center gap-2 truncate text-sm">
+                                    <ServerIcon className="w-3.5 h-3.5 text-zinc-400" />
+                                    {currentServer ? currentServer.name : "서버 선택"}
+                                </span>
+                                <ChevronDown className="w-3 h-3 opacity-50" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="w-56 bg-zinc-900 border-zinc-700 text-zinc-100">
+                            {servers.map(server => (
+                                <DropdownMenuItem
+                                    key={server.id}
+                                    onClick={() => handleServerSwitch(server.id)}
+                                    className="gap-2 cursor-pointer focus:bg-zinc-800"
+                                >
+                                    <div className={`w-2 h-2 rounded-full ${server.status === 'running' ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                                    <span className="truncate">{server.name}</span>
+                                    {server.id === serverId && <span className="ml-auto text-xs text-amber-500">Active</span>}
+                                </DropdownMenuItem>
+                            ))}
+                            <DropdownMenuSeparator className="bg-zinc-800" />
+                            <DropdownMenuItem className="gap-2 cursor-pointer focus:bg-zinc-800" onClick={() => router.push('/management?action=create')}>
+                                <Plus className="w-4 h-4" /> 새 서버 추가
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
             </div>
 
             {/* Navigation */}
             <nav className="flex-1 p-4 space-y-1">
                 {navItems.map(item => {
                     const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)
+                    // Append server ID to links to persist context
+                    const linkHref = `${item.href}?server=${serverId}`
+
                     return (
                         <Link
                             key={item.href}
-                            href={item.href}
+                            href={linkHref}
                             className={cn(
                                 "flex items-center gap-3 px-4 py-3 rounded-lg transition-all",
                                 isActive
@@ -113,20 +179,20 @@ export function Sidebar() {
                             </div>
                             <ChevronDown className="w-4 h-4 text-zinc-500" />
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuContent align="end" className="w-48 bg-zinc-900 border-zinc-700 text-zinc-100">
                             {role === "admin" && (
                                 <>
                                     <DropdownMenuItem asChild>
                                         <Link href="/users">사용자 관리</Link>
                                     </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
+                                    <DropdownMenuSeparator className="bg-zinc-800" />
                                 </>
                             )}
                             <DropdownMenuItem asChild>
                                 <Link href="/password">비밀번호 변경</Link>
                             </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={handleLogout} className="text-red-400">
+                            <DropdownMenuSeparator className="bg-zinc-800" />
+                            <DropdownMenuItem onClick={handleLogout} className="text-red-400 focus:bg-red-950/20 focus:text-red-300">
                                 <LogOut className="w-4 h-4 mr-2" /> 로그아웃
                             </DropdownMenuItem>
                         </DropdownMenuContent>

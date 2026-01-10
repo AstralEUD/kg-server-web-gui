@@ -21,6 +21,10 @@ type AppSettings struct {
 
 	// Multi-server support
 	DefaultServerName string `json:"defaultServerName"` // Default server instance name
+
+	// Monitoring & Integration
+	DiscordWebhookURL string `json:"discordWebhookUrl"`
+	EnableWatchdog    bool   `json:"enableWatchdog"`
 }
 
 // SettingsManager handles saving/loading settings

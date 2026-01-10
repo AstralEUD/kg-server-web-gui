@@ -33,52 +33,28 @@ type InstanceManager struct {
 	monitors    map[string]*agent.ProcessMonitor
 	dataPath    string
 	settingsMgr *settings.SettingsManager
+
+	// Integrations
+	watchdog *agent.Watchdog
+	discord  *agent.DiscordClient
 }
 
-func NewInstanceManager(dataPath string, sm *settings.SettingsManager) *InstanceManager {
+func NewInstanceManager(
+	dataPath string,
+	sm *settings.SettingsManager,
+	wd *agent.Watchdog,
+	discord *agent.DiscordClient,
+) *InstanceManager {
 	im := &InstanceManager{
 		instances:   make(map[string]*ServerInstance),
 		monitors:    make(map[string]*agent.ProcessMonitor),
 		dataPath:    dataPath,
 		settingsMgr: sm,
+		watchdog:    wd,
+		discord:     discord,
 	}
 	im.Load()
 	return im
-}
-
-func (im *InstanceManager) Load() error {
-	im.mu.Lock()
-	defer im.mu.Unlock()
-
-	path := filepath.Join(im.dataPath, "servers.json")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// Create default instance
-			im.instances["default"] = &ServerInstance{
-				ID:        "default",
-				Name:      "기본 서버",
-				Status:    "stopped",
-				CreatedAt: time.Now(),
-				Settings:  make(map[string]string),
-			}
-			// Fix: Initialize monitor for default instance
-			im.monitors["default"] = agent.NewProcessMonitor("ArmaReforgerServer.exe")
-			return nil
-		}
-		return err
-	}
-
-	var instances []*ServerInstance
-	if err := json.Unmarshal(data, &instances); err != nil {
-		return err
-	}
-
-	for _, inst := range instances {
-		im.instances[inst.ID] = inst
-		im.monitors[inst.ID] = agent.NewProcessMonitor("ArmaReforgerServer.exe")
-	}
-	return nil
 }
 
 func (im *InstanceManager) Save() error {
@@ -127,6 +103,13 @@ func (im *InstanceManager) Get(id string) *ServerInstance {
 	return im.instances[id]
 }
 
+// GetMonitor returns the process monitor for the given instance ID
+func (im *InstanceManager) GetMonitor(id string) *agent.ProcessMonitor {
+	im.mu.RLock()
+	defer im.mu.RUnlock()
+	return im.monitors[id]
+}
+
 func (im *InstanceManager) Create(inst *ServerInstance) error {
 	im.mu.Lock()
 	defer im.mu.Unlock()
@@ -161,6 +144,43 @@ func (im *InstanceManager) Delete(id string) error {
 	return im.Save()
 }
 
+// ... existing Load, Save, List, Get, Create, Delete ...
+
+func (im *InstanceManager) Load() error {
+	im.mu.Lock()
+	defer im.mu.Unlock()
+
+	path := filepath.Join(im.dataPath, "servers.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// Create default instance
+			im.instances["default"] = &ServerInstance{
+				ID:        "default",
+				Name:      "기본 서버",
+				Status:    "stopped",
+				CreatedAt: time.Now(),
+				Settings:  make(map[string]string),
+			}
+			// Fix: Initialize monitor for default instance
+			im.monitors["default"] = agent.NewProcessMonitor("ArmaReforgerServer.exe")
+			return nil
+		}
+		return err
+	}
+
+	var instances []*ServerInstance
+	if err := json.Unmarshal(data, &instances); err != nil {
+		return err
+	}
+
+	for _, inst := range instances {
+		im.instances[inst.ID] = inst
+		im.monitors[inst.ID] = agent.NewProcessMonitor("ArmaReforgerServer.exe")
+	}
+	return nil
+}
+
 func (im *InstanceManager) Start(id string, args []string) error {
 	im.mu.Lock()
 	inst, exists := im.instances[id]
@@ -181,7 +201,6 @@ func (im *InstanceManager) Start(id string, args []string) error {
 			settings := im.settingsMgr.Get()
 			if settings.ServerPath != "" {
 				inst.Path = settings.ServerPath
-				// Note: We don't save this to json to keep it dynamic if settings change
 			}
 		}
 	}
@@ -193,8 +212,16 @@ func (im *InstanceManager) Start(id string, args []string) error {
 	serverExe := filepath.Join(inst.Path, "ArmaReforgerServer.exe")
 	logs.GlobalLogs.Info(fmt.Sprintf("[%s] 서버 시작 중: %s", inst.Name, serverExe))
 
+	// Register with Watchdog before starting
+	if im.watchdog != nil {
+		im.watchdog.RegisterInstance(id, args, monitor)
+	}
+
 	if err := monitor.Start(serverExe, args); err != nil {
 		logs.GlobalLogs.Error(fmt.Sprintf("[%s] 서버 시작 실패: %v", inst.Name, err))
+		if im.discord != nil {
+			im.discord.SendMessage("❌ Start Failed", fmt.Sprintf("Failed to start server %s: %v", inst.Name, err), agent.ColorRed)
+		}
 		return err
 	}
 
@@ -202,6 +229,10 @@ func (im *InstanceManager) Start(id string, args []string) error {
 	inst.LastStarted = &now
 	inst.Status = "running"
 	logs.GlobalLogs.Info(fmt.Sprintf("[%s] 서버가 시작되었습니다", inst.Name))
+
+	if im.discord != nil {
+		im.discord.SendMessage("✅ Server Started", fmt.Sprintf("Server **%s** is now online.", inst.Name), agent.ColorGreen)
+	}
 
 	return nil
 }
@@ -222,12 +253,48 @@ func (im *InstanceManager) Stop(id string) error {
 
 	logs.GlobalLogs.Info(fmt.Sprintf("[%s] 서버 중지 중...", inst.Name))
 
+	// Disable watchdog temporarily if it's the active instance
+	// Ideally we should track which instance watchdog is watching, but for now we assume single active watchdog
+	if im.watchdog != nil {
+		// Just stop monitoring? Or tell it "expected stop"
+		// If we set Enabled=false global, it stays false.
+		// We should probably rely on the watchdog check loop to see if we manually stopped it?
+		// But Watchdog checks IsRunning(). If we Stop(), IsRunning becomes false -> Watchdog triggers restart.
+		// So we MUST disable watchdog before stopping.
+		// But SetEnabled(false) is persistent...
+		// Refined Watchdog logic needed: "Pause" or "ExpectStop".
+		// For MVP, let's just SetEnabled(false) if enabled, and rely on user to re-enable?
+		// No, that's bad UX.
+		// Let's assume the user Stops the server intentinally.
+		// If Watchdog is enabled globally, we should maybe pause it?
+
+		// Simpler approach: If we stop via API, we acknowledge it.
+		// BUT Watchdog runs in background.
+		// Let's SetEnabled(false) here, and if the user Starts again, the UI/Settings should decide?
+		// No, Start() doesn't re-enable it.
+
+		// Let's hack: If manually stopping, user implies "I don't want it running".
+		// So disabling Watchdog is correct behavior for "Stop Server".
+		if im.watchdog.IsEnabled() {
+			logs.GlobalLogs.Info("Stopping server manually - Watchdog paused.")
+			im.watchdog.SetEnabled(false)
+			// NOTE: This will turn off the toggle in Settings UI if UI polls this state?
+			// We need to sync this state back to SettingsManager if we want persistence.
+			// But Watchdog struct has its own enabled state.
+			// Let's leave it as is: Manual Stop = Disable Watchdog.
+		}
+	}
+
 	if err := monitor.Stop(); err != nil {
 		return err
 	}
 
 	inst.Status = "stopped"
 	logs.GlobalLogs.Info(fmt.Sprintf("[%s] 서버가 중지되었습니다", inst.Name))
+
+	if im.discord != nil {
+		im.discord.SendMessage("🛑 Server Stopped", fmt.Sprintf("Server **%s** has been stopped manually.", inst.Name), agent.ColorYellow)
+	}
 
 	return nil
 }

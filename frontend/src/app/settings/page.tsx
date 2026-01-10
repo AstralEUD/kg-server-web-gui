@@ -14,6 +14,8 @@ interface AppSettings {
     profilesPath: string
     steamcmdPath: string
     defaultServerName: string
+    discordWebhookUrl: string
+    enableWatchdog: boolean
 }
 
 export default function SettingsPage() {
@@ -22,7 +24,9 @@ export default function SettingsPage() {
         addonsPath: "",
         profilesPath: "",
         steamcmdPath: "",
-        defaultServerName: "default"
+        defaultServerName: "default",
+        discordWebhookUrl: "",
+        enableWatchdog: false
     })
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
@@ -66,7 +70,7 @@ export default function SettingsPage() {
         setSaving(false)
     }
 
-    const updateSetting = (key: keyof AppSettings, value: string) => {
+    const updateSetting = (key: keyof AppSettings, value: string | boolean) => {
         setSettings(prev => ({ ...prev, [key]: value }))
     }
 
@@ -99,6 +103,7 @@ export default function SettingsPage() {
                     <TabsList className="bg-zinc-800/50 p-1 rounded-lg">
                         <TabsTrigger value="paths">경로 설정</TabsTrigger>
                         <TabsTrigger value="general">일반 설정</TabsTrigger>
+                        <TabsTrigger value="monitoring">모니터링 & 알림</TabsTrigger>
                     </TabsList>
 
                     {/* Paths Tab */}
@@ -218,6 +223,50 @@ export default function SettingsPage() {
                                         onChange={e => updateSetting("defaultServerName", e.target.value)}
                                     />
                                     <p className="text-xs text-zinc-500">다중 서버 사용 시 기본으로 선택되는 서버 이름</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    {/* Monitoring Tab */}
+                    <TabsContent value="monitoring">
+                        <Card className="bg-zinc-800/50 border-zinc-700">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Server className="w-5 h-5 text-blue-400" /> 모니터링 & 알림
+                                </CardTitle>
+                                <CardDescription>
+                                    서버 자동 재시작 및 디스코드 알림을 설정합니다.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                                <div className="flex items-center justify-between p-4 bg-zinc-900 rounded-lg border border-zinc-700">
+                                    <div>
+                                        <Label className="font-semibold text-base">Watchdog (자동 재시작)</Label>
+                                        <p className="text-sm text-zinc-400">서버 충돌(Crash) 감지 시 자동으로 재시작합니다.</p>
+                                    </div>
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            className="sr-only peer"
+                                            checked={settings.enableWatchdog}
+                                            onChange={(e) => updateSetting("enableWatchdog", e.target.checked)}
+                                        />
+                                        <div className="w-11 h-6 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                    </label>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label className="flex items-center gap-2">
+                                        <span className="text-indigo-400 font-bold">Discord</span> Webhook URL
+                                    </Label>
+                                    <Input
+                                        placeholder="https://discord.com/api/webhooks/..."
+                                        className="bg-zinc-900 border-zinc-700"
+                                        value={settings.discordWebhookUrl}
+                                        onChange={e => updateSetting("discordWebhookUrl", e.target.value)}
+                                    />
+                                    <p className="text-xs text-zinc-500">서버 상태 변경(시작, 중지, 충돌)시 알림을 보낼 Webhook 주소</p>
                                 </div>
                             </CardContent>
                         </Card>

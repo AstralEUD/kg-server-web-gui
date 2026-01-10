@@ -7,22 +7,116 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/astral/kg-server-web-gui/internal/logs"
+	"github.com/shirou/gopsutil/v3/process"
 )
+
+// ResourceData holds a snapshot of process metrics
+type ResourceData struct {
+	Time     time.Time `json:"time"`
+	CPU      float64   `json:"cpu"` // Percent
+	MemoryMB float64   `json:"memoryMb"`
+}
 
 // ProcessMonitor handles server process control
 type ProcessMonitor struct {
 	Executable string
 	ServerPath string // Full path to server executable
+
+	// Monitoring
+	history     []ResourceData
+	historyLock sync.RWMutex
+	stopMonitor chan struct{}
 }
 
 func NewProcessMonitor(exeName string) *ProcessMonitor {
 	if exeName == "" {
 		exeName = "ArmaReforgerServer.exe"
 	}
-	return &ProcessMonitor{Executable: exeName}
+	pm := &ProcessMonitor{
+		Executable: exeName,
+		history:    make([]ResourceData, 0),
+	}
+	pm.StartMonitoring()
+	return pm
+}
+
+// StartMonitoring begins background collection of metrics
+func (p *ProcessMonitor) StartMonitoring() {
+	if p.stopMonitor != nil {
+		return
+	}
+	p.stopMonitor = make(chan struct{})
+
+	go func() {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-p.stopMonitor:
+				return
+			case <-ticker.C:
+				p.collectMetrics()
+			}
+		}
+	}()
+}
+
+func (p *ProcessMonitor) collectMetrics() {
+	running, pid, err := p.IsRunning()
+	if err != nil || !running {
+		// Record zero if not running
+		p.addHistory(ResourceData{Time: time.Now(), CPU: 0, MemoryMB: 0})
+		return
+	}
+
+	proc, err := process.NewProcess(int32(pid))
+	if err != nil {
+		return
+	}
+
+	// CPU percent
+	cpu, _ := proc.CPUPercent() // This might block or need previous call data, gopsutil handles it often
+
+	// Memory
+	memInfo, err := proc.MemoryInfo()
+	mem := 0.0
+	if err == nil {
+		mem = float64(memInfo.RSS) / 1024 / 1024 // Bytes -> MB
+	}
+
+	p.addHistory(ResourceData{
+		Time:     time.Now(),
+		CPU:      cpu,
+		MemoryMB: mem,
+	})
+}
+
+func (p *ProcessMonitor) addHistory(data ResourceData) {
+	p.historyLock.Lock()
+	defer p.historyLock.Unlock()
+
+	p.history = append(p.history, data)
+	// Keep last 60 points (2 mins roughly if 2s interval) -> actually 120 secs
+	// Let's keep 100 points
+	if len(p.history) > 100 {
+		p.history = p.history[len(p.history)-100:]
+	}
+}
+
+// GetResourceHistory returns the collected metrics
+func (p *ProcessMonitor) GetResourceHistory() []ResourceData {
+	p.historyLock.RLock()
+	defer p.historyLock.RUnlock()
+
+	// Return copy
+	result := make([]ResourceData, len(p.history))
+	copy(result, p.history)
+	return result
 }
 
 // SetServerPath sets the full path to the server executable

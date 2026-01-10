@@ -58,8 +58,15 @@ func SetupRoutes(app *fiber.App) {
 		settingsMgr.Update(currSettings)
 	}
 
-	instanceMgr := server.NewInstanceManager(dataPath, settingsMgr)
+	// Initialize Phase 1 components
+	discord := agent.NewDiscordClient(currSettings.DiscordWebhookURL)
 	proc := agent.NewProcessMonitor("ArmaReforgerServer.exe")
+	proc.SetServerPath(currSettings.ServerPath) // Ensure path is set if available
+
+	wd := agent.NewWatchdog(discord)
+	wd.SetEnabled(currSettings.EnableWatchdog)
+
+	instanceMgr := server.NewInstanceManager(dataPath, settingsMgr, wd, discord)
 	cfg := config.NewConfigManager()
 	pm := profile.NewProfileManager(dataPath)
 	sm := saves.NewSaveManager(savesPath, backupsPath)
@@ -70,7 +77,7 @@ func SetupRoutes(app *fiber.App) {
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(userManager, sessionManager)
 
-	baseHandlers := handlers.NewApiHandlers(proc, cfg, settingsMgr)
+	baseHandlers := handlers.NewApiHandlers(instanceMgr, cfg, settingsMgr, wd, discord)
 	profileHandler := handlers.NewProfileHandler(pm)
 	savesHandler := handlers.NewSavesHandler(sm)
 	collectionHandler := handlers.NewCollectionHandler(collectionMgr)
@@ -165,6 +172,7 @@ func SetupRoutes(app *fiber.App) {
 		}
 		return c.JSON(fiber.Map{"status": "stopped"})
 	})
+	api.Post("/servers/:id/rcon", baseHandlers.SendRcon)
 
 	// Legacy Status & Server Control (for backward compatibility)
 	api.Get("/status", baseHandlers.GetStatus)

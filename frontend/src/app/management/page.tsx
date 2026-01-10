@@ -1,13 +1,31 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
-import { Settings, Clock, RotateCw, Shield, Gauge, Network, Cpu, Bug, Zap, Save, Power, Download, CheckCircle, Loader2 } from "lucide-react"
+import { Settings, Clock, RotateCw, Shield, Gauge, Network, Cpu, Bug, Zap, Save, Power, Download, CheckCircle, Loader2, Server, Trash2, Plus, Play, Square } from "lucide-react"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog"
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table"
 
 interface AdvancedSettings {
     limitServerMaxFPS: boolean
@@ -30,9 +48,28 @@ const defaultSettings: AdvancedSettings = {
 }
 
 export default function ManagementPage() {
+    const router = useRouter()
     const [settings, setSettings] = useState<AdvancedSettings>(defaultSettings)
     const [saving, setSaving] = useState(false)
     const [downloading, setDownloading] = useState(false)
+
+    // Server Management State
+    const [servers, setServers] = useState<any[]>([])
+    const [createDialogOpen, setCreateDialogOpen] = useState(false)
+    const [newServerName, setNewServerName] = useState("")
+    const [newServerId, setNewServerId] = useState("")
+    const [creating, setCreating] = useState(false)
+
+    useEffect(() => {
+        fetchServers()
+    }, [])
+
+    const fetchServers = async () => {
+        try {
+            const res = await fetch("http://localhost:3000/api/servers", { credentials: "include" })
+            if (res.ok) setServers(await res.json() || [])
+        } catch (e) { }
+    }
 
     const update = <K extends keyof AdvancedSettings>(key: K, value: AdvancedSettings[K]) => {
         setSettings(prev => ({ ...prev, [key]: value }))
@@ -58,6 +95,53 @@ export default function ManagementPage() {
             console.error(e)
         }
         setDownloading(false)
+    }
+
+    const createServer = async () => {
+        if (!newServerId || !newServerName) {
+            alert("ID와 이름을 모두 입력해주세요.")
+            return
+        }
+        setCreating(true)
+        try {
+            const res = await fetch("http://localhost:3000/api/servers", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: newServerId, name: newServerName }),
+                credentials: "include"
+            })
+            if (res.ok) {
+                setCreateDialogOpen(false)
+                setNewServerName("")
+                setNewServerId("")
+                fetchServers()
+            } else {
+                const err = await res.json()
+                alert("생성 실패: " + err.error)
+            }
+        } catch (e) {
+            alert("생성 중 오류 발생")
+        }
+        setCreating(false)
+    }
+
+    const deleteServer = async (id: string) => {
+        if (!confirm(`서버 '${id}'를 정말 삭제하시겠습니까?`)) return
+        try {
+            const res = await fetch(`http://localhost:3000/api/servers/${id}`, {
+                method: "DELETE",
+                credentials: "include"
+            })
+            if (res.ok) {
+                fetchServers()
+            } else {
+                alert("삭제 실패")
+            }
+        } catch (e) { }
+    }
+
+    const switchToServer = (id: string) => {
+        router.push(`/?server=${id}`)
     }
 
     const SettingRow = ({
@@ -88,6 +172,94 @@ export default function ManagementPage() {
                 </div>
 
                 <div className="grid gap-6">
+                    {/* Server Instance Management */}
+                    <Card className="bg-zinc-800/50 border-zinc-700">
+                        <CardHeader className="flex flex-row items-center justify-between">
+                            <div>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Server className="w-5 h-5 text-blue-400" /> 서버 인스턴스
+                                </CardTitle>
+                                <CardDescription>다중 서버 인스턴스를 생성하고 관리합니다</CardDescription>
+                            </div>
+                            <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+                                <DialogTrigger asChild>
+                                    <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-700">
+                                        <Plus className="w-4 h-4" /> 새 서버 추가
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent className="bg-zinc-900 border-zinc-800 text-white">
+                                    <DialogHeader>
+                                        <DialogTitle>새 서버 인스턴스 생성</DialogTitle>
+                                        <DialogDescription>새로운 Arma Reforger 서버 인스턴스를 설정합니다.</DialogDescription>
+                                    </DialogHeader>
+                                    <div className="space-y-4 py-4">
+                                        <div className="space-y-2">
+                                            <Label>서버 ID (고유 식별자)</Label>
+                                            <Input
+                                                placeholder="my-server-2"
+                                                value={newServerId}
+                                                onChange={e => setNewServerId(e.target.value)}
+                                                className="bg-zinc-800 border-zinc-700"
+                                            />
+                                            <p className="text-xs text-zinc-500">영문 소문자와 숫자, 하이픈만 사용 가능</p>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>서버 표시 이름</Label>
+                                            <Input
+                                                placeholder="My Awesome Server #2"
+                                                value={newServerName}
+                                                onChange={e => setNewServerName(e.target.value)}
+                                                className="bg-zinc-800 border-zinc-700"
+                                            />
+                                        </div>
+                                    </div>
+                                    <DialogFooter>
+                                        <Button variant="outline" onClick={() => setCreateDialogOpen(false)} className="bg-transparent border-zinc-700 hover:bg-zinc-800">취소</Button>
+                                        <Button onClick={createServer} disabled={creating} className="bg-blue-600 hover:bg-blue-700">
+                                            {creating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                                            생성
+                                        </Button>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
+                        </CardHeader>
+                        <CardContent>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow className="border-zinc-700 hover:bg-zinc-800/50">
+                                        <TableHead className="text-zinc-400">ID</TableHead>
+                                        <TableHead className="text-zinc-400">이름</TableHead>
+                                        <TableHead className="text-zinc-400">상태</TableHead>
+                                        <TableHead className="text-right text-zinc-400">관리</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {servers.map(server => (
+                                        <TableRow key={server.id} className="border-zinc-700 hover:bg-zinc-800/50">
+                                            <TableCell className="font-mono text-xs">{server.id}</TableCell>
+                                            <TableCell className="font-medium">{server.name}</TableCell>
+                                            <TableCell>
+                                                <Badge variant={server.status === "running" ? "default" : "secondary"} className={server.status === "running" ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30" : "bg-zinc-700 text-zinc-400"}>
+                                                    {server.status === "running" ? "실행 중" : "중지됨"}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-right space-x-2">
+                                                <Button size="icon" variant="ghost" className="h-8 w-8 hover:text-emerald-400" onClick={() => switchToServer(server.id)} title="대시보드로 이동">
+                                                    <Gauge className="w-4 h-4" />
+                                                </Button>
+                                                {server.id !== "default" && (
+                                                    <Button size="icon" variant="ghost" className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/30" onClick={() => deleteServer(server.id)} title="삭제">
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </Button>
+                                                )}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+
                     {/* Maintenance Tools */}
                     <Card className="bg-zinc-800/50 border-zinc-700">
                         <CardHeader>
@@ -101,7 +273,7 @@ export default function ManagementPage() {
                                     <div className="font-medium">서버 강제 업데이트 / 재설치</div>
                                     <div className="text-sm text-zinc-500">SteamCMD를 통해 서버 파일을 확인하고 업데이트합니다</div>
                                 </div>
-                                <Button onClick={downloadServer} disabled={downloading} variant="outline" className="gap-2">
+                                <Button onClick={downloadServer} disabled={downloading} variant="outline" className="gap-2 bg-transparent border-zinc-700 hover:bg-zinc-800">
                                     {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                                     업데이트 시작
                                 </Button>
