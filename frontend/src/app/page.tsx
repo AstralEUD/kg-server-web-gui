@@ -11,6 +11,8 @@ import Link from "next/link"
 
 import LogViewer from '@/components/LogViewer'
 
+import ResourceMonitor from '@/components/ResourceMonitor'
+
 export default function Dashboard() {
   const searchParams = useSearchParams()
   const serverId = searchParams.get('server') || 'default'
@@ -131,6 +133,8 @@ export default function Dashboard() {
           )}
         </div>
 
+        {/* Resource Monitor */}
+        <ResourceMonitor serverId={serverId} />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column: Controls & Status */}
