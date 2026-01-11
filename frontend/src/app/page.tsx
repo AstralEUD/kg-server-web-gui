@@ -9,7 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Play, Square, RefreshCw, Loader2, Download, Layers, ChevronRight } from "lucide-react"
 import Link from "next/link"
 
-import ResourceMonitor from '@/components/ResourceMonitor'
 import LogViewer from '@/components/LogViewer'
 
 export default function Dashboard() {
@@ -132,8 +131,6 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Resource Monitor (New) */}
-        <ResourceMonitor serverId={serverId} />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column: Controls & Status */}

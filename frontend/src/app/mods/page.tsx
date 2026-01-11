@@ -650,117 +650,115 @@ export default function ModsPage() {
                                         <CardTitle>서버 설정 (Enabled Mods)</CardTitle>
                                         <CardDescription>server.json에 저장된 실제 로드될 모드 목록 (위쪽이 먼저 로드됨)</CardDescription>
                                     </div>
-                                    <Button size="sm" variant="outline" className="text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10" onClick={syncEnabledToCollection} disabled={syncing}>
-                                        {syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                                        현재 목록을 모음집에 동기화
-                                    </Button>
                                 </div>
-                            </CardHeader>
-                            <CardContent>
-                                <Table>
-                                    <TableHeader><TableRow><TableHead>목록</TableHead><TableHead>ID</TableHead><TableHead>용량</TableHead><TableHead>의존성</TableHead><TableHead className="text-right">순서 / 관리</TableHead></TableRow></TableHeader>
-                                    <TableBody>
-                                        {enabledMods.map((mod, index) => {
-                                            // Find full info from installed mods to get dependencies
-                                            const installedInfo = installedMods.find(im => im.modId === (mod.modId || (mod as any).id))
-                                            const deps = installedInfo?.dependencies || []
-                                            const size = installedInfo?.size || 0
+                                {/* Sync button removed as requested */}
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <Table>
+                                <TableHeader><TableRow><TableHead>목록</TableHead><TableHead>ID</TableHead><TableHead>용량</TableHead><TableHead>의존성</TableHead><TableHead className="text-right">순서 / 관리</TableHead></TableRow></TableHeader>
+                                <TableBody>
+                                    {enabledMods.map((mod, index) => {
+                                        // Find full info from installed mods to get dependencies
+                                        const installedInfo = installedMods.find(im => im.modId === (mod.modId || (mod as any).id))
+                                        const deps = installedInfo?.dependencies || []
+                                        const size = installedInfo?.size || 0
 
-                                            return (
-                                                <TableRow key={mod.modId}>
-                                                    <TableCell className="font-medium">{mod.name}</TableCell>
-                                                    <TableCell className="font-mono text-xs text-zinc-500">{mod.modId}</TableCell>
-                                                    <TableCell className="text-sm text-zinc-400">{size > 0 ? formatBytes(size) : "-"}</TableCell>
-                                                    <TableCell>
-                                                        <div className="flex flex-wrap gap-1 max-w-[250px]">
-                                                            {deps.length > 0 ? (
-                                                                deps.slice(0, 3).map(depId => (
-                                                                    <Badge key={depId} variant="outline" className="text-[10px] py-0 px-1 bg-blue-500/5 border-blue-500/20 text-blue-400/70 whitespace-nowrap" title={depId}>
-                                                                        {getModName(depId)}
-                                                                    </Badge>
-                                                                ))
-                                                            ) : (
-                                                                <span className="text-zinc-600 text-xs">-</span>
-                                                            )}
-                                                            {deps.length > 3 && (
-                                                                <span className="text-[10px] text-zinc-500">+{deps.length - 3}</span>
-                                                            )}
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="text-right">
-                                                        <div className="flex justify-end gap-1">
-                                                            <div className="flex gap-0.5 mr-4 border-r border-zinc-700 pr-2">
-                                                                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => moveEnabledMod(index, 'top')} title="맨 위로"><ChevronsUp className="w-4 h-4" /></Button>
-                                                                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => moveEnabledMod(index, 'up')} title="위로"><ChevronUp className="w-4 h-4" /></Button>
-                                                                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => moveEnabledMod(index, 'down')} title="아래로"><ChevronDown className="w-4 h-4" /></Button>
-                                                                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => moveEnabledMod(index, 'bottom')} title="맨 아래로"><ChevronsDown className="w-4 h-4" /></Button>
-                                                            </div>
-                                                            <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 hover:bg-red-900/20" onClick={() => removeEnabledMod(mod.modId)}>
-                                                                <Trash2 className="w-4 h-4 mr-1" /> 제거
-                                                            </Button>
-                                                        </div>
-                                                    </TableCell>
-                                                </TableRow>
-                                            )
-                                        })}
-                                    </TableBody>
-                                </Table>
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-
-                    {/* Installed Tab */}
-                    <TabsContent value="installed">
-                        <Card className="bg-zinc-800/50 border-zinc-700">
-                            <CardHeader><CardTitle>디스크에 설치됨</CardTitle><CardDescription>서버 폴더에 실제로 존재하는 모드 파일들</CardDescription></CardHeader>
-                            <CardContent><ScrollArea className="h-[500px]">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>이름</TableHead>
-                                            <TableHead>ID</TableHead>
-                                            <TableHead>용량</TableHead>
-                                            <TableHead>의존성</TableHead>
-                                            <TableHead className="text-right">관리</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {installedMods.map(m => (
-                                            <TableRow key={m.modId}>
-                                                <TableCell className="font-medium">{m.name}</TableCell>
-                                                <TableCell className="font-mono text-xs text-zinc-500">{m.modId}</TableCell>
-                                                <TableCell className="text-sm text-zinc-400">{m.size ? formatBytes(m.size) : "-"}</TableCell>
+                                        return (
+                                            <TableRow key={mod.modId}>
+                                                <TableCell className="font-medium">{mod.name}</TableCell>
+                                                <TableCell className="font-mono text-xs text-zinc-500">{mod.modId}</TableCell>
+                                                <TableCell className="text-sm text-zinc-400">{size > 0 ? formatBytes(size) : "-"}</TableCell>
                                                 <TableCell>
                                                     <div className="flex flex-wrap gap-1 max-w-[250px]">
-                                                        {m.dependencies && m.dependencies.length > 0 ? (
-                                                            m.dependencies.slice(0, 3).map(depId => (
-                                                                <Badge key={depId} variant="outline" className="text-[10px] py-0 px-1 bg-amber-500/5 border-amber-500/20 text-amber-500/70 whitespace-nowrap" title={depId}>
+                                                        {deps.length > 0 ? (
+                                                            deps.slice(0, 3).map(depId => (
+                                                                <Badge key={depId} variant="outline" className="text-[10px] py-0 px-1 bg-blue-500/5 border-blue-500/20 text-blue-400/70 whitespace-nowrap" title={depId}>
                                                                     {getModName(depId)}
                                                                 </Badge>
                                                             ))
                                                         ) : (
                                                             <span className="text-zinc-600 text-xs">-</span>
                                                         )}
-                                                        {m.dependencies && m.dependencies.length > 3 && (
-                                                            <span className="text-[10px] text-zinc-500">+{m.dependencies.length - 3}</span>
+                                                        {deps.length > 3 && (
+                                                            <span className="text-[10px] text-zinc-500">+{deps.length - 3}</span>
                                                         )}
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="text-right">
-                                                    <Button size="sm" variant="ghost" className="text-zinc-500 hover:text-red-400" onClick={() => deleteInstalledMod(m.modId)}>
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </Button>
+                                                    <div className="flex justify-end gap-1">
+                                                        <div className="flex gap-0.5 mr-4 border-r border-zinc-700 pr-2">
+                                                            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => moveEnabledMod(index, 'top')} title="맨 위로"><ChevronsUp className="w-4 h-4" /></Button>
+                                                            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => moveEnabledMod(index, 'up')} title="위로"><ChevronUp className="w-4 h-4" /></Button>
+                                                            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => moveEnabledMod(index, 'down')} title="아래로"><ChevronDown className="w-4 h-4" /></Button>
+                                                            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => moveEnabledMod(index, 'bottom')} title="맨 아래로"><ChevronsDown className="w-4 h-4" /></Button>
+                                                        </div>
+                                                        <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 hover:bg-red-900/20" onClick={() => removeEnabledMod(mod.modId)}>
+                                                            <Trash2 className="w-4 h-4 mr-1" /> 제거
+                                                        </Button>
+                                                    </div>
                                                 </TableCell>
                                             </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </ScrollArea></CardContent>
-                        </Card>
-                    </TabsContent>
+                                        )
+                                    })}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
 
-                </Tabs>
-            </div>
+                {/* Installed Tab */}
+                <TabsContent value="installed">
+                    <Card className="bg-zinc-800/50 border-zinc-700">
+                        <CardHeader><CardTitle>디스크에 설치됨</CardTitle><CardDescription>서버 폴더에 실제로 존재하는 모드 파일들</CardDescription></CardHeader>
+                        <CardContent><ScrollArea className="h-[500px]">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>이름</TableHead>
+                                        <TableHead>ID</TableHead>
+                                        <TableHead>용량</TableHead>
+                                        <TableHead>의존성</TableHead>
+                                        <TableHead className="text-right">관리</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {installedMods.map(m => (
+                                        <TableRow key={m.modId}>
+                                            <TableCell className="font-medium">{m.name}</TableCell>
+                                            <TableCell className="font-mono text-xs text-zinc-500">{m.modId}</TableCell>
+                                            <TableCell className="text-sm text-zinc-400">{m.size ? formatBytes(m.size) : "-"}</TableCell>
+                                            <TableCell>
+                                                <div className="flex flex-wrap gap-1 max-w-[250px]">
+                                                    {m.dependencies && m.dependencies.length > 0 ? (
+                                                        m.dependencies.slice(0, 3).map(depId => (
+                                                            <Badge key={depId} variant="outline" className="text-[10px] py-0 px-1 bg-amber-500/5 border-amber-500/20 text-amber-500/70 whitespace-nowrap" title={depId}>
+                                                                {getModName(depId)}
+                                                            </Badge>
+                                                        ))
+                                                    ) : (
+                                                        <span className="text-zinc-600 text-xs">-</span>
+                                                    )}
+                                                    {m.dependencies && m.dependencies.length > 3 && (
+                                                        <span className="text-[10px] text-zinc-500">+{m.dependencies.length - 3}</span>
+                                                    )}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <Button size="sm" variant="ghost" className="text-zinc-500 hover:text-red-400" onClick={() => deleteInstalledMod(m.modId)}>
+                                                    <Trash2 className="w-4 h-4" />
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </ScrollArea></CardContent>
+                    </Card>
+                </TabsContent>
+
+            </Tabs>
         </div>
+        </div >
     )
 }

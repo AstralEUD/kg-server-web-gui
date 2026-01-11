@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
 import { Map, Play, RefreshCw, Copy, Check, Loader2, Info, Plus, Trash2, GripVertical, Save } from "lucide-react"
 
 interface Scenario {
@@ -164,32 +165,47 @@ export default function ScenariosPage() {
                                 </div>
                             ) : (
                                 <div className="space-y-3">
-                                    {scenarios.map(s => (
-                                        <div key={s.scenarioId} className="flex flex-col gap-3 p-3 rounded-lg bg-zinc-900 border border-zinc-700">
-                                            <div>
-                                                <div className="font-medium">{s.name}</div>
-                                                <div className="text-xs text-zinc-500 font-mono mt-1 break-all">{s.scenarioId}</div>
+                                    {scenarios.map(s => {
+                                        // Check if this scenario is the ONE in missionHeader
+                                        // missionHeader.mission usually looks like "{GUID}Missions/Name.conf"
+                                        // s.scenarioId is the GUID usually.
+                                        // But sometimes s.scenarioId is the full path?
+                                        // Let's check strict equality or contains.
+                                        const isActive = missionHeader.mission && missionHeader.mission.includes(s.scenarioId)
+
+                                        return (
+                                            <div key={s.scenarioId} className={`flex flex-col gap-3 p-3 rounded-lg border transition-all ${isActive ? "bg-emerald-900/20 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)]" : "bg-zinc-900 border-zinc-700 hover:border-zinc-600"}`}>
+                                                <div>
+                                                    <div className="flex items-center justify-between">
+                                                        <div className={`font-medium ${isActive ? "text-emerald-400" : ""}`}>{s.name}</div>
+                                                        {isActive && <Badge variant="outline" className="text-emerald-400 border-emerald-500/50 bg-emerald-500/10 text-[10px] h-5">Active</Badge>}
+                                                    </div>
+                                                    <div className="text-xs text-zinc-500 font-mono mt-1 break-all">{s.scenarioId}</div>
+                                                </div>
+                                                <div className="flex gap-2 justify-end">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => copyScenarioId(s.scenarioId)}
+                                                        className="gap-2"
+                                                    >
+                                                        {copied === s.scenarioId ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                                                        {copied === s.scenarioId ? "복사됨" : "ID 복사"}
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant={isActive ? "default" : "secondary"}
+                                                        className={isActive ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+                                                        onClick={() => applyScenario(s.scenarioId)}
+                                                        disabled={isActive}
+                                                    >
+                                                        {isActive ? <Check className="w-3 h-3 mr-1" /> : <Play className="w-3 h-3 mr-1" />}
+                                                        {isActive ? "적용됨" : "서버에 적용"}
+                                                    </Button>
+                                                </div>
                                             </div>
-                                            <div className="flex gap-2 justify-end">
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => copyScenarioId(s.scenarioId)}
-                                                    className="gap-2"
-                                                >
-                                                    {copied === s.scenarioId ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                                                    {copied === s.scenarioId ? "복사됨" : "ID 복사"}
-                                                </Button>
-                                                <Button
-                                                    size="sm"
-                                                    variant="secondary"
-                                                    onClick={() => applyScenario(s.scenarioId)}
-                                                >
-                                                    <Play className="w-3 h-3 mr-1" /> 서버에 적용
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    ))}
+                                        )
+                                    })}
                                 </div>
                             )}
                         </CardContent>

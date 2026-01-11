@@ -11,24 +11,27 @@ import (
 // Watchdog monitors the server process and restarts it if it crashes
 type Watchdog struct {
 	mu       sync.RWMutex
-	process  *ProcessMonitor
 	discord  *DiscordClient
 	enabled  bool
 	check    *time.Ticker
 	stopChan chan struct{}
 
-	// Auto-restart tracking
-	lastRestart  time.Time
-	restartCount int
+	// Multi-instance tracking
+	instances map[string]*WatchedInstance
+}
 
-	// Server Instance ID/Args to restart with
-	instanceID string
-	startArgs  []string
+type WatchedInstance struct {
+	ID           string
+	Args         []string
+	Process      *ProcessMonitor
+	RestartCount int
+	LastRestart  time.Time
 }
 
 func NewWatchdog(discord *DiscordClient) *Watchdog {
 	return &Watchdog{
-		discord: discord,
+		discord:   discord,
+		instances: make(map[string]*WatchedInstance),
 	}
 }
 
@@ -57,9 +60,12 @@ func (w *Watchdog) IsEnabled() bool {
 func (w *Watchdog) RegisterInstance(id string, args []string, proc *ProcessMonitor) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	w.instanceID = id
-	w.startArgs = args
-	w.process = proc // Update the monitor being watched
+
+	w.instances[id] = &WatchedInstance{
+		ID:      id,
+		Args:    args,
+		Process: proc,
+	}
 }
 
 func (w *Watchdog) StartMonitoring() {
@@ -97,47 +103,48 @@ func (w *Watchdog) checkProcess() {
 		return
 	}
 
-	running, _, err := w.process.IsRunning()
+	for _, inst := range w.instances {
+		w.checkInstance(inst)
+	}
+}
+
+func (w *Watchdog) checkInstance(inst *WatchedInstance) {
+	running, _, err := inst.Process.IsRunning()
 	if err != nil {
-		logs.GlobalLogs.Error(fmt.Sprintf("Watchdog check failed: %v", err))
+		logs.GlobalLogs.Error(fmt.Sprintf("Watchdog check failed for %s: %v", inst.ID, err))
 		return
 	}
-
-	// If server is NOT running but Watchdog IS enabled, we assume it crashed
-	// (Unless the user explicitly stopped it - the user stop handler should disable watchdog momentarily or we need a status flag)
-	// For now, we rely on the InstanceManager to enable/disable Watchdog when starting/stopping.
 
 	if !running {
 		// Detect Crash
 		now := time.Now()
 
 		// Reset restart count if last restart was > 5 mins ago
-		if now.Sub(w.lastRestart) > 5*time.Minute {
-			w.restartCount = 0
+		if now.Sub(inst.LastRestart) > 5*time.Minute {
+			inst.RestartCount = 0
 		}
 
-		if w.restartCount >= 3 {
-			logs.GlobalLogs.Error("Watchdog gave up: Too many restarts in short period.")
-			w.discord.SendMessage("❌ Server Crash", "Server crashed repeatedly. Watchdog disabled to prevent loop.", ColorRed)
-			w.enabled = false // Disable to prevent loop
+		if inst.RestartCount >= 3 {
+			logs.GlobalLogs.Error(fmt.Sprintf("Watchdog gave up on %s: Too many restarts.", inst.ID))
+			// Don't disable global watchdog, just maybe log error strictly?
+			// Or maybe we need per-instance enabled flag?
+			// For now, just spamming log is bad. Let's just return.
+			// Ideally we should alert once and stop trying for this instance.
 			return
 		}
 
-		logs.GlobalLogs.Warn(fmt.Sprintf("Watchdog detected server down! Restarting... (%d/3)", w.restartCount+1))
-		w.discord.SendMessage("⚠️ Server Crash Detected", fmt.Sprintf("Server is down. Restarting... (Attempt %d/3)", w.restartCount+1), ColorYellow)
+		logs.GlobalLogs.Warn(fmt.Sprintf("Watchdog detected server %s down! Restarting... (%d/3)", inst.ID, inst.RestartCount+1))
+		w.discord.SendMessage("⚠️ Server Crash Detected", fmt.Sprintf("Server **%s** is down. Restarting... (Attempt %d/3)", inst.ID, inst.RestartCount+1), ColorYellow)
 
 		// Restart
-		if err := w.process.Start("", w.startArgs); err != nil {
-			logs.GlobalLogs.Error(fmt.Sprintf("Watchdog restart failed: %v", err))
-			w.discord.SendMessage("❌ Restart Failed", fmt.Sprintf("Failed to restart server: %v", err), ColorRed)
+		if err := inst.Process.Start("", inst.Args); err != nil {
+			logs.GlobalLogs.Error(fmt.Sprintf("Watchdog restart failed for %s: %v", inst.ID, err))
+			w.discord.SendMessage("❌ Restart Failed", fmt.Sprintf("Failed to restart server %s: %v", inst.ID, err), ColorRed)
 		} else {
-			logs.GlobalLogs.Info("Watchdog restarted server successfully.")
-			w.discord.SendMessage("✅ Server Restored", "Watchdog successfully restarted the server.", ColorGreen)
-			w.lastRestart = now
-			w.restartCount++
+			logs.GlobalLogs.Info(fmt.Sprintf("Watchdog restarted server %s successfully.", inst.ID))
+			w.discord.SendMessage("✅ Server Restored", fmt.Sprintf("Watchdog successfully restarted **%s**.", inst.ID), ColorGreen)
+			inst.LastRestart = now
+			inst.RestartCount++
 		}
-	} else {
-		// Running fine, maybe reset restart count?
-		// No, keep 5 min window logic.
 	}
 }

@@ -117,7 +117,7 @@ export default function LogViewer({ serverId = "default" }: LogViewerProps) {
             {/* Log Window */}
             <div
                 ref={scrollRef}
-                className="flex-1 overflow-y-auto font-mono text-xs text-zinc-300 space-y-1 bg-black/40 p-3 rounded-t border border-zinc-800 border-b-0"
+                className="flex-1 overflow-y-auto font-mono text-xs text-zinc-300 space-y-1 bg-black/40 p-3 rounded-t border border-zinc-800 border-b-0 max-h-[500px]"
             >
                 {logs.length === 0 ? (
                     <div className="flex items-center justify-center h-full text-zinc-600 italic">No logs available...</div>

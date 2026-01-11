@@ -17,9 +17,17 @@ func (h *ApiHandlers) ListInstalledMods(c *fiber.Ctx) error {
 		path = "addons"
 	}
 
+	// Ensure absolute path
+	absPath, err := filepath.Abs(path)
+	if err == nil {
+		path = absPath
+	}
+
 	mods, err := agent.ScanAddons(path)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		// Just log error and return empty if it's just "not found" to prevent UI freakout?
+		// But ScanAddons returns error only on WalkDir failure.
+		return c.Status(500).JSON(fiber.Map{"error": err.Error(), "path": path})
 	}
 
 	return c.JSON(mods)

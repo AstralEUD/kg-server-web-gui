@@ -62,6 +62,10 @@ func ScanAddons(root string) ([]Mod, error) {
 
 	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
+			// If root doesn't exist, just return nil to stop walking, resulting in empty list
+			if os.IsNotExist(err) && path == root {
+				return nil
+			}
 			return err
 		}
 		if d.IsDir() {

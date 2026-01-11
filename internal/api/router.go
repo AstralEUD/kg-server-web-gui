@@ -173,6 +173,13 @@ func SetupRoutes(app *fiber.App) {
 		return c.JSON(fiber.Map{"status": "stopped"})
 	})
 	api.Post("/servers/:id/rcon", baseHandlers.SendRcon)
+	api.Get("/servers/:id/metrics", func(c *fiber.Ctx) error {
+		metrics, err := instanceMgr.GetServerMetrics(c.Params("id"))
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.JSON(metrics)
+	})
 
 	// Legacy Status & Server Control (for backward compatibility)
 	api.Get("/status", baseHandlers.GetStatus)

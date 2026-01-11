@@ -84,3 +84,44 @@ func (im *InstanceManager) SendRconCommand(id string, command string) (string, e
 
 	return resp, nil
 }
+
+type ServerMetrics struct {
+	FPS         float64  `json:"fps"`
+	PlayerCount int      `json:"playerCount"`
+	Players     []string `json:"players"`
+}
+
+func (im *InstanceManager) GetServerMetrics(id string) (*ServerMetrics, error) {
+	// 1. Get status for FPS/Players
+	// Arma Reforger 'status' command output example (hypothetical, need adjustment based on real output):
+	// "Load: 10%  FPS: 59.9  Players: 5/64"
+	// Or maybe separate commands?
+	// Common reliable commands: 'status', 'players'
+
+	resp, err := im.SendRconCommand(id, "status")
+	if err != nil {
+		return nil, err
+	}
+	// TODO: Parse resp
+	_ = resp
+
+	metrics := &ServerMetrics{
+		Players: []string{},
+	}
+
+	// Parsing placeholder
+	metrics.FPS = 0
+	metrics.PlayerCount = 0
+
+	// 2. Get Players
+	pResp, err := im.SendRconCommand(id, "players")
+	if err == nil {
+		// Mock parsing for now to use pResp
+		if len(pResp) > 0 {
+			// Mock count
+			metrics.PlayerCount = 0
+		}
+	}
+
+	return metrics, nil
+}

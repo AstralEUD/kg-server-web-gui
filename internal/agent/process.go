@@ -30,6 +30,12 @@ type ProcessMonitor struct {
 	history     []ResourceData
 	historyLock sync.RWMutex
 	stopMonitor chan struct{}
+
+	// Process Cache
+	isRunning bool
+	cachedPID int
+	lastCheck time.Time
+	stateLock sync.RWMutex
 }
 
 func NewProcessMonitor(exeName string) *ProcessMonitor {
@@ -40,6 +46,8 @@ func NewProcessMonitor(exeName string) *ProcessMonitor {
 		Executable: exeName,
 		history:    make([]ResourceData, 0),
 	}
+	// Note: We don't auto-start monitoring here in constructor if we want explicit control?
+	// But exiting code did. Let's keep it.
 	pm.StartMonitoring()
 	return pm
 }
@@ -60,10 +68,19 @@ func (p *ProcessMonitor) StartMonitoring() {
 			case <-p.stopMonitor:
 				return
 			case <-ticker.C:
+				p.updateState() // Periodic actual check
 				p.collectMetrics()
 			}
 		}
 	}()
+}
+
+func (p *ProcessMonitor) updateState() {
+	running, pid, _ := p.checkProcessReal()
+	p.stateLock.Lock()
+	p.isRunning = running
+	p.cachedPID = pid
+	p.stateLock.Unlock()
 }
 
 func (p *ProcessMonitor) collectMetrics() {
@@ -121,12 +138,31 @@ func (p *ProcessMonitor) GetResourceHistory() []ResourceData {
 
 // SetServerPath sets the full path to the server executable
 func (p *ProcessMonitor) SetServerPath(path string) {
+	p.stateLock.Lock()
+	defer p.stateLock.Unlock()
 	p.ServerPath = path
 }
 
-// IsRunning checks if the server is running and returns the PID
+// IsRunning returns the cached process status
 func (p *ProcessMonitor) IsRunning() (bool, int, error) {
-	cmd := exec.Command("tasklist", "/FI", fmt.Sprintf("IMAGENAME eq %s", p.Executable), "/FO", "CSV", "/NH")
+	p.stateLock.RLock()
+	defer p.stateLock.RUnlock()
+
+	// If cache is "stale" (e.g. not updated in 10s), should we force check?
+	// For now, rely on StartMonitoring ticker.
+	// If StartMonitoring is NOT called (stopped), this returns old value.
+	// But StartMonitoring is called New().
+	return p.isRunning, p.cachedPID, nil
+}
+
+// checkProcessReal performs the actual system check
+func (p *ProcessMonitor) checkProcessReal() (bool, int, error) {
+	// Safe read of params
+	p.stateLock.RLock()
+	exe := p.Executable
+	p.stateLock.RUnlock()
+
+	cmd := exec.Command("tasklist", "/FI", fmt.Sprintf("IMAGENAME eq %s", exe), "/FO", "CSV", "/NH")
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	if err := cmd.Run(); err != nil {
@@ -186,7 +222,9 @@ func (p *ProcessMonitor) Start(path string, args []string) error {
 	// Use provided path or ServerPath or default
 	exePath := path
 	if exePath == "" {
+		p.stateLock.RLock()
 		exePath = p.ServerPath
+		p.stateLock.RUnlock()
 	}
 	if exePath == "" {
 		return fmt.Errorf("서버 경로가 설정되지 않았습니다. 환경 설정에서 서버 경로를 지정해주세요")
