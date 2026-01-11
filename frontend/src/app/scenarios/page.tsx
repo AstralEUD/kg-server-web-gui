@@ -246,43 +246,42 @@ export default function ScenariosPage() {
                                     </pre>
                                 </p>
                             </div>
-                        </div>
-                    </CardContent>
-                </Card>
+                        </CardContent>
+                    </Card>
 
-                {/* Manual Input Card */}
-                <Card className="bg-zinc-800/50 border-zinc-700">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Plus className="w-5 h-5 text-purple-400" /> 수동 입력
-                        </CardTitle>
-                        <CardDescription>시나리오 ID를 직접 입력하여 적용합니다.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                            <Label>시나리오 ID (GUID + Path)</Label>
-                            <Input
-                                placeholder="{59AD59368755F41A}Missions/21_GM_Eden.conf"
-                                className="bg-zinc-900 border-zinc-700 placeholder:text-zinc-600 font-mono text-xs"
-                                id="manual-scenario-id"
-                            />
-                            <p className="text-xs text-zinc-500">
-                                목록에 보이지 않는 경우 직접 .conf 경로를 입력하세요.
-                            </p>
-                        </div>
-                        <Button
-                            className="w-full bg-purple-600 hover:bg-purple-700"
-                            onClick={() => {
-                                const input = document.getElementById("manual-scenario-id") as HTMLInputElement
-                                if (input && input.value) applyScenario(input.value.trim())
-                            }}
-                        >
-                            <Play className="w-4 h-4 mr-2" /> 수동 적용
-                        </Button>
-                    </CardContent>
-                </Card>
+                    {/* Manual Input Card */}
+                    <Card className="bg-zinc-800/50 border-zinc-700">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Plus className="w-5 h-5 text-purple-400" /> 수동 입력
+                            </CardTitle>
+                            <CardDescription>시나리오 ID를 직접 입력하여 적용합니다.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="space-y-2">
+                                <Label>시나리오 ID (GUID + Path)</Label>
+                                <Input
+                                    placeholder="{59AD59368755F41A}Missions/21_GM_Eden.conf"
+                                    className="bg-zinc-900 border-zinc-700 placeholder:text-zinc-600 font-mono text-xs"
+                                    id="manual-scenario-id"
+                                />
+                                <p className="text-xs text-zinc-500">
+                                    목록에 보이지 않는 경우 직접 .conf 경로를 입력하세요.
+                                </p>
+                            </div>
+                            <Button
+                                className="w-full bg-purple-600 hover:bg-purple-700"
+                                onClick={() => {
+                                    const input = document.getElementById("manual-scenario-id") as HTMLInputElement
+                                    if (input && input.value) applyScenario(input.value.trim())
+                                }}
+                            >
+                                <Play className="w-4 h-4 mr-2" /> 수동 적용
+                            </Button>
+                        </CardContent>
+                    </Card>
+                </div>
             </div>
-        </div>
         </div >
     )
 }
