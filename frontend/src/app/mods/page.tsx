@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, Package, Plus, Trash2, Download, RefreshCw, ArrowUpDown, ExternalLink, Loader2, AlertTriangle, CheckCircle, Save, FolderHeart, List, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown } from "lucide-react"
+import { Search, Package, Plus, Trash2, Download, RefreshCw, ArrowUpDown, ExternalLink, Loader2, AlertTriangle, CheckCircle, Save, FolderHeart, List, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, Database } from "lucide-react"
 
 function formatBytes(bytes: number) {
     if (typeof bytes !== 'number' || isNaN(bytes)) return '0 Bytes';
@@ -378,7 +378,7 @@ export default function ModsPage() {
         setSyncing(false)
     }
 
-    const toggleCollectionSort = (key: 'name' | 'size') => {
+    const toggleCollectionSort = (key: 'name' | 'size' | 'category') => {
         if (collectionSortKey === key) {
             setCollectionSortOrder(collectionSortOrder === 'asc' ? 'desc' : 'asc')
         } else {
@@ -388,8 +388,21 @@ export default function ModsPage() {
     }
 
     const sortedCollection = [...collectionMods].sort((a, b) => {
-        let valA: any = a[collectionSortKey] || ""
-        let valB: any = b[collectionSortKey] || ""
+        let valA: any
+        let valB: any
+
+        if (collectionSortKey === 'category') {
+            valA = modCategories[a.modId] || ""
+            valB = modCategories[b.modId] || ""
+        } else if (collectionSortKey === 'size') {
+            const infoA = installedMods.find(m => m.modId === a.modId)
+            const infoB = installedMods.find(m => m.modId === b.modId)
+            valA = infoA?.size || 0
+            valB = infoB?.size || 0
+        } else {
+            valA = (a as any)[collectionSortKey] || ""
+            valB = (b as any)[collectionSortKey] || ""
+        }
 
         if (typeof valA === 'string') valA = valA.toLowerCase()
         if (typeof valB === 'string') valB = valB.toLowerCase()
