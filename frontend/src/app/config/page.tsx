@@ -109,10 +109,19 @@ export default function ConfigPage() {
     const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
     const [adminsText, setAdminsText] = useState("")
+    const [rawConfig, setRawConfig] = useState("")
+    const [activeTab, setActiveTab] = useState("server")
 
     useEffect(() => {
         fetchConfig()
     }, [])
+
+
+    useEffect(() => {
+        if (activeTab === "raw") {
+            fetchRawConfig()
+        }
+    }, [activeTab])
 
     const fetchConfig = async () => {
         setLoading(true)
@@ -132,6 +141,49 @@ export default function ConfigPage() {
             console.error("설정 로드 실패", e)
         }
         setLoading(false)
+    }
+
+    const fetchRawConfig = async () => {
+        try {
+            const res = await fetch("http://localhost:3000/api/config/raw", { credentials: "include" })
+            if (res.ok) {
+                const data = await res.json()
+                setRawConfig(data.content)
+            }
+        } catch (e) {
+            console.error("Raw 설정 로드 실패", e)
+        }
+    }
+
+    const saveRawConfig = async () => {
+        setSaving(true)
+        try {
+            // Validate JSON
+            try {
+                JSON.parse(rawConfig)
+            } catch (e) {
+                alert("유효하지 않은 JSON입니다.")
+                setSaving(false)
+                return
+            }
+
+            const res = await fetch("http://localhost:3000/api/config/raw", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ content: rawConfig }),
+            })
+            if (res.ok) {
+                alert("Raw 설정이 저장되었습니다.")
+                fetchConfig() // Refresh parsed config
+            } else {
+                alert("저장 실패")
+            }
+        } catch (e) {
+            console.error("설정 저장 실패", e)
+            alert("설정 저장 실패")
+        }
+        setSaving(false)
     }
 
     const importConfig = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -189,8 +241,6 @@ export default function ConfigPage() {
         setSaving(false)
     }
 
-
-
     const updateGame = (field: keyof ServerConfig["game"], value: any) => {
         setConfig(prev => ({ ...prev, game: { ...prev.game, [field]: value } }))
     }
@@ -242,15 +292,15 @@ export default function ConfigPage() {
                         <Button variant="outline" className="gap-2" onClick={fetchConfig}>
                             <RefreshCw className="w-4 h-4" /> 새로고침
                         </Button>
-                        <Button className="gap-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700" onClick={saveConfig} disabled={saving}>
+                        <Button className="gap-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700" onClick={activeTab === "raw" ? saveRawConfig : saveConfig} disabled={saving}>
                             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                            저장하기
+                            {activeTab === "raw" ? "Raw 저장" : "저장하기"}
                         </Button>
                     </div>
                 </div>
 
                 {/* Tabs */}
-                <Tabs defaultValue="server" className="space-y-6">
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
                     <TabsList className="bg-zinc-800/50 p-1 rounded-lg">
                         <TabsTrigger value="server" className="gap-2"><Settings className="w-4 h-4" /> 일반</TabsTrigger>
                         <TabsTrigger value="network" className="gap-2"><Globe className="w-4 h-4" /> 네트워크</TabsTrigger>
@@ -258,6 +308,7 @@ export default function ConfigPage() {
                         <TabsTrigger value="performance" className="gap-2"><Cpu className="w-4 h-4" /> 성능</TabsTrigger>
                         <TabsTrigger value="von" className="gap-2"><Radio className="w-4 h-4" /> 음성(VON)</TabsTrigger>
                         <TabsTrigger value="operating" className="gap-2"><Database className="w-4 h-4" /> 운영</TabsTrigger>
+                        <TabsTrigger value="raw" className="gap-2 text-amber-500"><Database className="w-4 h-4" /> Raw 편집</TabsTrigger>
                     </TabsList>
 
                     {/* Server Tab */}
@@ -477,6 +528,26 @@ export default function ConfigPage() {
                                         </div>
                                     </div>
                                 </div>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    {/* Raw Edit Tab */}
+                    <TabsContent value="raw">
+                        <Card className="bg-zinc-800/50 border-zinc-700 h-full">
+                            <CardHeader>
+                                <CardTitle className="text-amber-500">Raw Config Editor</CardTitle>
+                                <CardDescription>
+                                    server.json 파일을 직접 편집합니다. 문법 오류 시 서버가 시작되지 않을 수 있습니다.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <textarea
+                                    className="w-full h-[600px] bg-zinc-950 border border-zinc-700 rounded-md p-4 font-mono text-sm text-green-400 focus:outline-none focus:ring-2 focus:ring-amber-500/50 resize-none"
+                                    value={rawConfig}
+                                    onChange={(e) => setRawConfig(e.target.value)}
+                                    spellCheck={false}
+                                />
                             </CardContent>
                         </Card>
                     </TabsContent>

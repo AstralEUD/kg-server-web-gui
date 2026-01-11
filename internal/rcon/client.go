@@ -2,7 +2,6 @@ package rcon
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/james4k/rcon"
 )
@@ -42,9 +41,6 @@ func (c *Client) Send(command string) (string, error) {
 			return "", fmt.Errorf("failed to connect to RCON: %w", err)
 		}
 	}
-
-	// Set deadline
-	c.Conn.SetDeadline(time.Now().Add(5 * time.Second))
 
 	reqID, err := c.Conn.Write(command)
 	if err != nil {

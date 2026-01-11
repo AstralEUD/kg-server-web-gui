@@ -93,3 +93,55 @@ func (m *ConfigManager) BackupConfig(path string) (string, error) {
 
 	return backupPath, nil
 }
+
+// ReadConfigRaw reads config as raw string
+func (m *ConfigManager) ReadConfigRaw(path string) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	return string(data), nil
+}
+
+// WriteConfigRaw writes raw string to config
+func (m *ConfigManager) WriteConfigRaw(path string, data string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// 1. Validate JSON
+	var js map[string]interface{}
+	if err := json.Unmarshal([]byte(data), &js); err != nil {
+		return fmt.Errorf("invalid json: %w", err)
+	}
+
+	// 2. Write to temp file
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+
+	tmpFile, err := os.CreateTemp(dir, "server.json.tmp")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.WriteString(data); err != nil {
+		tmpFile.Close()
+		return err
+	}
+	tmpFile.Close()
+
+	// 3. Rename (Atomic replace)
+	if err := os.Rename(tmpFile.Name(), path); err != nil {
+		return err
+	}
+
+	return nil
+}

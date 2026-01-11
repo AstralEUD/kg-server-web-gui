@@ -323,6 +323,8 @@ func SetupRoutes(app *fiber.App) {
 	// Config
 	api.Get("/config", baseHandlers.GetConfig)
 	api.Post("/config", baseHandlers.SaveConfig)
+	api.Get("/config/raw", baseHandlers.GetConfigRaw)
+	api.Post("/config/raw", baseHandlers.SaveConfigRaw)
 	api.Post("/config/enrich", baseHandlers.EnrichMods)
 
 	// Mods
@@ -439,7 +441,7 @@ func SetupRoutes(app *fiber.App) {
 		}
 
 		// Restore collection if present
-		if p.CollectionItems != nil && len(p.CollectionItems) > 0 {
+		if len(p.CollectionItems) > 0 {
 			// Create a temporary collection object to save
 			// We can reuse "My Collection" ID if we know it, or just use the first one from collectionMgr
 			// For simplicity, we'll overwrite the first collection or create "My Collection"

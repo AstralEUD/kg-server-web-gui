@@ -34,6 +34,36 @@ func (h *ApiHandlers) SaveConfig(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"status": "saved"})
 }
 
+// GetConfigRaw reads server.json as text
+func (h *ApiHandlers) GetConfigRaw(c *fiber.Ctx) error {
+	path := c.Query("path", "server.json")
+
+	data, err := h.Config.ReadConfigRaw(path)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"content": data})
+}
+
+// SaveConfigRaw writes server.json as text
+func (h *ApiHandlers) SaveConfigRaw(c *fiber.Ctx) error {
+	path := c.Query("path", "server.json")
+
+	var req struct {
+		Content string `json:"content"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	if err := h.Config.WriteConfigRaw(path, req.Content); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"status": "saved"})
+}
+
 // EnrichModsRequest is the request body for EnrichMods
 type EnrichModsRequest struct {
 	Mods []struct {
