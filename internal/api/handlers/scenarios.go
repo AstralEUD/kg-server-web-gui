@@ -9,8 +9,13 @@ import (
 
 // ListScenarios executes listing via CLI
 func (h *ApiHandlers) ListScenarios(c *fiber.Ctx) error {
-	serverPath := c.Query("serverPath", "ArmaReforgerServer.exe")
-	addonsPath := c.Query("addonsPath", "C:\\saves\\addons")
+	settings := h.Settings.Get()
+	serverPath := c.Query("serverPath", settings.ServerPath)
+	addonsPath := c.Query("addonsPath", settings.AddonsPath)
+
+	if serverPath == "" {
+		serverPath = "ArmaReforgerServer.exe"
+	}
 
 	// Support multiple addon paths? usually simple csv or multiple params
 	// keeping simple: one path

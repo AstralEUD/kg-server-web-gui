@@ -42,6 +42,8 @@ export default function ModsPage() {
     const [enabledMods, setEnabledMods] = useState<Mod[]>([])     // Config
     const [collectionMods, setCollectionMods] = useState<Mod[]>([]) // User's "My List"
 
+    const [modCategories, setModCategories] = useState<Record<string, string>>({}) // ModID -> Category
+
     const [searchQuery, setSearchQuery] = useState("")
     const [workshopQuery, setWorkshopQuery] = useState("")
     const [selectedAddon, setSelectedAddon] = useState<WorkshopAddon | null>(null)
@@ -51,13 +53,14 @@ export default function ModsPage() {
     const [addingToConfig, setAddingToConfig] = useState(false)
 
     // Sort/Filter for Collection
-    const [collectionSortKey, setCollectionSortKey] = useState<'name' | 'size'>('name')
+    const [collectionSortKey, setCollectionSortKey] = useState<'name' | 'size' | 'category'>('category')
     const [collectionSortOrder, setCollectionSortOrder] = useState<'asc' | 'desc'>('asc')
 
     useEffect(() => {
         fetchInstalledMods()
         fetchConfig()
         loadCollection()
+        fetchCategories()
     }, [])
 
     // useEffect for auto-save removed, saving on action now.
@@ -72,12 +75,37 @@ export default function ModsPage() {
         setLoading(false)
     }
 
+    const fetchCategories = async () => {
+        try {
+            const res = await fetch("http://localhost:3000/api/mods/categories", { credentials: "include" })
+            if (res.ok) setModCategories(await res.json())
+        } catch (e) {
+            console.error(e)
+        }
+    }
+
+    const handleSetCategory = async (modId: string, category: string) => {
+        setModCategories(prev => ({ ...prev, [modId]: category }))
+
+        try {
+            await fetch("http://localhost:3000/api/mods/categories", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ modId, category }),
+                credentials: "include"
+            })
+        } catch (e) {
+            console.error("Failed to save category", e)
+        }
+    }
+
     const refreshAll = async () => {
         setLoading(true)
         await Promise.all([
             fetchInstalledMods(),
             fetchConfig(),
-            fetchCollections()
+            fetchCollections(),
+            fetchCategories()
         ])
         setLoading(false)
     }
@@ -528,11 +556,18 @@ export default function ModsPage() {
                                         <CardDescription>서버에 적용할 준비가 된 모드 목록입니다.</CardDescription>
                                     </div>
                                     <div className="flex gap-2">
+                                        <Button variant="outline" size="sm" onClick={syncEnabledToCollection} disabled={syncing}>
+                                            <Database className={`w-3 h-3 mr-2 ${syncing ? 'animate-spin' : ''}`} />
+                                            {syncing ? "동기화 중..." : "활성 모드 동기화"}
+                                        </Button>
                                         <Button variant="ghost" size="sm" onClick={() => toggleCollectionSort('name')} className={collectionSortKey === 'name' ? 'bg-zinc-700' : ''}>
                                             이름순 {collectionSortKey === 'name' && (collectionSortOrder === 'asc' ? '↑' : '↓')}
                                         </Button>
                                         <Button variant="ghost" size="sm" onClick={() => toggleCollectionSort('size')} className={collectionSortKey === 'size' ? 'bg-zinc-700' : ''}>
                                             용량순 {collectionSortKey === 'size' && (collectionSortOrder === 'asc' ? '↑' : '↓')}
+                                        </Button>
+                                        <Button variant="ghost" size="sm" onClick={() => toggleCollectionSort('category')} className={collectionSortKey === 'category' ? 'bg-zinc-700' : ''}>
+                                            카테고리순 {collectionSortKey === 'category' && (collectionSortOrder === 'asc' ? '↑' : '↓')}
                                         </Button>
                                     </div>
                                 </div>
@@ -545,6 +580,7 @@ export default function ModsPage() {
                                             <TableHead>ID</TableHead>
                                             <TableHead>용량</TableHead>
                                             <TableHead>상태</TableHead>
+                                            <TableHead>카테고리</TableHead>
                                             <TableHead>관리</TableHead>
                                         </TableRow>
                                     </TableHeader>
@@ -553,10 +589,38 @@ export default function ModsPage() {
                                             const { isInstalled, isEnabled } = getStatus(mod.modId)
                                             const installedInfo = installedMods.find(im => im.modId === mod.modId)
                                             const size = installedInfo?.size || 0
+                                            const category = modCategories[mod.modId] || ""
+                                            const isMissing = !isInstalled
+
                                             return (
-                                                <TableRow key={mod.modId}>
-                                                    <TableCell className="font-medium">{mod.name}</TableCell>
-                                                    <TableCell className="font-mono text-xs text-zinc-500">{mod.modId}</TableCell>
+                                                <TableRow key={mod.modId} className={isMissing ? "bg-red-900/10" : ""}>
+                                                    <TableCell className="font-medium">
+                                                        <div className="flex items-center gap-2">
+                                                            {mod.name}
+                                                            {isMissing && <Badge variant="destructive" className="text-[10px] px-1 py-0">MISSING</Badge>}
+                                                        </div>
+                                                        <div className="text-xs text-zinc-500 font-mono flex items-center gap-2">
+                                                            {mod.modId}
+                                                            {isMissing && (
+                                                                <Button variant="ghost" size="sm" className="h-4 px-1 text-[10px]" onClick={async () => {
+                                                                    // Fetch info
+                                                                    try {
+                                                                        const res = await fetch(`http://localhost:3000/api/workshop/${mod.modId}`, { credentials: "include" })
+                                                                        if (res.ok) {
+                                                                            const info = await res.json()
+                                                                            // Update collection item name locally (refresh will also do it)
+                                                                            setCollectionMods(prev => prev.map(m => m.modId === mod.modId ? { ...m, name: info.name } : m))
+                                                                            alert(`정보 갱신: ${info.name}`)
+                                                                        } else {
+                                                                            alert("정보를 가져올 수 없습니다 (삭제되었거나 비공개)")
+                                                                        }
+                                                                    } catch (e) { console.error(e) }
+                                                                }}>
+                                                                    <Download className="w-3 h-3 mr-1" /> 정보 갱신
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                    </TableCell>
                                                     <TableCell className="text-sm text-zinc-400">{size > 0 ? formatBytes(size) : "-"}</TableCell>
                                                     <TableCell>
                                                         <div className="flex flex-wrap gap-1 max-w-[300px]">
@@ -570,194 +634,215 @@ export default function ModsPage() {
                                                                 <span className="text-zinc-600 text-xs">-</span>
                                                             )}
                                                             {mod.dependencies && mod.dependencies.length > 5 && (
-                                                                <span className="text-[10px] text-zinc-500">외 {mod.dependencies.length - 5}개</span>
+                                                                <span className="text-[10px] text-zinc-500">+{mod.dependencies.length - 5} more</span>
                                                             )}
                                                         </div>
                                                     </TableCell>
                                                     <TableCell>
-                                                        <div className="flex gap-2">
-                                                            {isInstalled ? <Badge variant="secondary" className="bg-green-500/20 text-green-400">설치됨</Badge> : <Badge variant="secondary" className="bg-zinc-700">미설치</Badge>}
-                                                            {isEnabled ? <Badge variant="secondary" className="bg-blue-500/20 text-blue-400">활성</Badge> : <Badge variant="secondary" className="bg-zinc-700">비활성</Badge>}
-                                                        </div>
+                                                        <input
+                                                            type="text"
+                                                            className="bg-transparent border-b border-zinc-700 text-sm w-24 focus:outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-700"
+                                                            placeholder="분류.."
+                                                            value={category}
+                                                            onChange={(e) => handleSetCategory(mod.modId, e.target.value)}
+                                                            list="category-suggestions"
+                                                        />
+                                                        <datalist id="category-suggestions">
+                                                            <option value="Map" />
+                                                            <option value="System" />
+                                                            <option value="Weapon" />
+                                                            <option value="Vehicle" />
+                                                            <option value="Gear" />
+                                                        </datalist>
                                                     </TableCell>
-                                                    <TableCell>
-                                                        <div className="flex gap-2">
-                                                            {!isEnabled && (
-                                                                <Button size="sm" variant="outline" onClick={() => enableModFromCollection(mod)} disabled={addingToConfig}>
-                                                                    <Plus className="w-4 h-4 mr-1" /> 서버에 추가
-                                                                </Button>
+                                                    <span className="text-[10px] text-zinc-500">외 {mod.dependencies.length - 5}개</span>
                                                             )}
-                                                            <Button size="icon" variant="ghost" onClick={() => removeFromCollection(mod.modId)} className="text-red-400">
-                                                                <Trash2 className="w-4 h-4" />
-                                                            </Button>
-                                                        </div>
+                                                </div>
                                                     </TableCell>
-                                                </TableRow>
-                                            )
-                                        })}
-                                        {collectionMods.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-8 text-zinc-500">모음집이 비어있습니다. 워크샵 검색 탭에서 추가하세요.</TableCell></TableRow>}
-                                    </TableBody>
-                                </Table>
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-
-                    {/* Workshop Search Tab */}
-                    <TabsContent value="search">
-                        <Card className="bg-zinc-800/50 border-zinc-700">
-                            <CardHeader><CardTitle>워크샵 검색</CardTitle></CardHeader>
-                            <CardContent className="space-y-4">
-                                <div className="flex gap-2">
-                                    <Input placeholder="모드 ID 또는 이름 (현재는 ID 검색만 지원)" value={workshopQuery} onChange={e => setWorkshopQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && searchWorkshop()} className="bg-zinc-900 border-zinc-700" />
-                                    <Button onClick={searchWorkshop} disabled={searching}><Search className="w-4 h-4 mr-2" />검색</Button>
-                                </div>
-                                {selectedAddon && (
-                                    <div className="p-4 rounded-lg bg-zinc-900 border border-zinc-700">
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <h3 className="text-lg font-bold text-amber-500">{selectedAddon.name}</h3>
-                                                <p className="text-sm text-zinc-400 font-mono mt-1">{selectedAddon.id}</p>
-                                                {selectedAddon.dependencies && (
-                                                    <div className="mt-2 text-sm space-y-1">
-                                                        <div className="flex gap-4">
-                                                            <span className="text-zinc-500">버전: <span className="text-zinc-300">{(selectedAddon as any).version || "N/A"}</span></span>
-                                                            <span className="text-zinc-500">업데이트: <span className="text-zinc-300">{(selectedAddon as any).lastUpdated || "N/A"}</span></span>
-                                                        </div>
-                                                        <div>
-                                                            <span className="text-zinc-500">의존성: </span>
-                                                            <span className="text-zinc-300">{selectedAddon.dependencies?.length || 0}개</span>
-                                                        </div>
-                                                        {(selectedAddon as any).summary && <div className="text-zinc-400 text-xs mt-2 border-l-2 border-zinc-700 pl-2">{(selectedAddon as any).summary}</div>}
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <Button onClick={addToCollection} className="bg-amber-600 hover:bg-amber-700">
-                                                <FolderHeart className="w-4 h-4 mr-2" /> 모음집에 추가
+                                    <TableCell>
+                                        <div className="flex gap-2">
+                                            {isInstalled ? <Badge variant="secondary" className="bg-green-500/20 text-green-400">설치됨</Badge> : <Badge variant="secondary" className="bg-zinc-700">미설치</Badge>}
+                                            {isEnabled ? <Badge variant="secondary" className="bg-blue-500/20 text-blue-400">활성</Badge> : <Badge variant="secondary" className="bg-zinc-700">비활성</Badge>}
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <div className="flex gap-2">
+                                            {!isEnabled && (
+                                                <Button size="sm" variant="outline" onClick={() => enableModFromCollection(mod)} disabled={addingToConfig}>
+                                                    <Plus className="w-4 h-4 mr-1" /> 서버에 추가
+                                                </Button>
+                                            )}
+                                            <Button size="icon" variant="ghost" onClick={() => removeFromCollection(mod.modId)} className="text-red-400">
+                                                <Trash2 className="w-4 h-4" />
                                             </Button>
                                         </div>
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-
-                    {/* Enabled Tab */}
-                    <TabsContent value="enabled">
-                        <Card className="bg-zinc-800/50 border-zinc-700">
-                            <CardHeader>
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <CardTitle>서버 설정 (Enabled Mods)</CardTitle>
-                                        <CardDescription>server.json에 저장된 실제 로드될 모드 목록 (위쪽이 먼저 로드됨)</CardDescription>
-                                    </div>
-                                </div>
-                                {/* Sync button removed as requested */}
-                            </CardHeader>
-                            <CardContent>
-                                <Table>
-                                    <TableHeader><TableRow><TableHead>목록</TableHead><TableHead>ID</TableHead><TableHead>용량</TableHead><TableHead>의존성</TableHead><TableHead className="text-right">순서 / 관리</TableHead></TableRow></TableHeader>
-                                    <TableBody>
-                                        {enabledMods.map((mod, index) => {
-                                            // Find full info from installed mods to get dependencies
-                                            const installedInfo = installedMods.find(im => im.modId === (mod.modId || (mod as any).id))
-                                            const deps = installedInfo?.dependencies || []
-                                            const size = installedInfo?.size || 0
-
-                                            return (
-                                                <TableRow key={mod.modId}>
-                                                    <TableCell className="font-medium">{mod.name}</TableCell>
-                                                    <TableCell className="font-mono text-xs text-zinc-500">{mod.modId}</TableCell>
-                                                    <TableCell className="text-sm text-zinc-400">{size > 0 ? formatBytes(size) : "-"}</TableCell>
-                                                    <TableCell>
-                                                        <div className="flex flex-wrap gap-1 max-w-[250px]">
-                                                            {deps.length > 0 ? (
-                                                                deps.slice(0, 3).map(depId => (
-                                                                    <Badge key={depId} variant="outline" className="text-[10px] py-0 px-1 bg-blue-500/5 border-blue-500/20 text-blue-400/70 whitespace-nowrap" title={depId}>
-                                                                        {getModName(depId)}
-                                                                    </Badge>
-                                                                ))
-                                                            ) : (
-                                                                <span className="text-zinc-600 text-xs">-</span>
-                                                            )}
-                                                            {deps.length > 3 && (
-                                                                <span className="text-[10px] text-zinc-500">+{deps.length - 3}</span>
-                                                            )}
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="text-right">
-                                                        <div className="flex justify-end gap-1">
-                                                            <div className="flex gap-0.5 mr-4 border-r border-zinc-700 pr-2">
-                                                                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => moveEnabledMod(index, 'top')} title="맨 위로"><ChevronsUp className="w-4 h-4" /></Button>
-                                                                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => moveEnabledMod(index, 'up')} title="위로"><ChevronUp className="w-4 h-4" /></Button>
-                                                                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => moveEnabledMod(index, 'down')} title="아래로"><ChevronDown className="w-4 h-4" /></Button>
-                                                                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => moveEnabledMod(index, 'bottom')} title="맨 아래로"><ChevronsDown className="w-4 h-4" /></Button>
-                                                            </div>
-                                                            <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 hover:bg-red-900/20" onClick={() => removeEnabledMod(mod.modId)}>
-                                                                <Trash2 className="w-4 h-4 mr-1" /> 제거
-                                                            </Button>
-                                                        </div>
-                                                    </TableCell>
-                                                </TableRow>
-                                            )
+                                    </TableCell>
+                                </TableRow>
+                                )
                                         })}
-                                    </TableBody>
-                                </Table>
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
+                                {collectionMods.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-8 text-zinc-500">모음집이 비어있습니다. 워크샵 검색 탭에서 추가하세요.</TableCell></TableRow>}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+            </TabsContent>
 
-                    {/* Installed Tab */}
-                    <TabsContent value="installed">
-                        <Card className="bg-zinc-800/50 border-zinc-700">
-                            <CardHeader><CardTitle>디스크에 설치됨</CardTitle><CardDescription>서버 폴더에 실제로 존재하는 모드 파일들</CardDescription></CardHeader>
-                            <CardContent><ScrollArea className="h-[500px]">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>이름</TableHead>
-                                            <TableHead>ID</TableHead>
-                                            <TableHead>용량</TableHead>
-                                            <TableHead>의존성</TableHead>
-                                            <TableHead className="text-right">관리</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {installedMods.map(m => (
-                                            <TableRow key={m.modId}>
-                                                <TableCell className="font-medium">{m.name}</TableCell>
-                                                <TableCell className="font-mono text-xs text-zinc-500">{m.modId}</TableCell>
-                                                <TableCell className="text-sm text-zinc-400">{m.size ? formatBytes(m.size) : "-"}</TableCell>
-                                                <TableCell>
-                                                    <div className="flex flex-wrap gap-1 max-w-[250px]">
-                                                        {m.dependencies && m.dependencies.length > 0 ? (
-                                                            m.dependencies.slice(0, 3).map(depId => (
-                                                                <Badge key={depId} variant="outline" className="text-[10px] py-0 px-1 bg-amber-500/5 border-amber-500/20 text-amber-500/70 whitespace-nowrap" title={depId}>
-                                                                    {getModName(depId)}
-                                                                </Badge>
-                                                            ))
-                                                        ) : (
-                                                            <span className="text-zinc-600 text-xs">-</span>
-                                                        )}
-                                                        {m.dependencies && m.dependencies.length > 3 && (
-                                                            <span className="text-[10px] text-zinc-500">+{m.dependencies.length - 3}</span>
-                                                        )}
+            {/* Workshop Search Tab */}
+            <TabsContent value="search">
+                <Card className="bg-zinc-800/50 border-zinc-700">
+                    <CardHeader><CardTitle>워크샵 검색</CardTitle></CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="flex gap-2">
+                            <Input placeholder="모드 ID 또는 이름 (현재는 ID 검색만 지원)" value={workshopQuery} onChange={e => setWorkshopQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && searchWorkshop()} className="bg-zinc-900 border-zinc-700" />
+                            <Button onClick={searchWorkshop} disabled={searching}><Search className="w-4 h-4 mr-2" />검색</Button>
+                        </div>
+                        {selectedAddon && (
+                            <div className="p-4 rounded-lg bg-zinc-900 border border-zinc-700">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-amber-500">{selectedAddon.name}</h3>
+                                        <p className="text-sm text-zinc-400 font-mono mt-1">{selectedAddon.id}</p>
+                                        {selectedAddon.dependencies && (
+                                            <div className="mt-2 text-sm space-y-1">
+                                                <div className="flex gap-4">
+                                                    <span className="text-zinc-500">버전: <span className="text-zinc-300">{(selectedAddon as any).version || "N/A"}</span></span>
+                                                    <span className="text-zinc-500">업데이트: <span className="text-zinc-300">{(selectedAddon as any).lastUpdated || "N/A"}</span></span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-zinc-500">의존성: </span>
+                                                    <span className="text-zinc-300">{selectedAddon.dependencies?.length || 0}개</span>
+                                                </div>
+                                                {(selectedAddon as any).summary && <div className="text-zinc-400 text-xs mt-2 border-l-2 border-zinc-700 pl-2">{(selectedAddon as any).summary}</div>}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <Button onClick={addToCollection} className="bg-amber-600 hover:bg-amber-700">
+                                        <FolderHeart className="w-4 h-4 mr-2" /> 모음집에 추가
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            </TabsContent>
+
+            {/* Enabled Tab */}
+            <TabsContent value="enabled">
+                <Card className="bg-zinc-800/50 border-zinc-700">
+                    <CardHeader>
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <CardTitle>서버 설정 (Enabled Mods)</CardTitle>
+                                <CardDescription>server.json에 저장된 실제 로드될 모드 목록 (위쪽이 먼저 로드됨)</CardDescription>
+                            </div>
+                        </div>
+                        {/* Sync button removed as requested */}
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader><TableRow><TableHead>목록</TableHead><TableHead>ID</TableHead><TableHead>용량</TableHead><TableHead>의존성</TableHead><TableHead className="text-right">순서 / 관리</TableHead></TableRow></TableHeader>
+                            <TableBody>
+                                {enabledMods.map((mod, index) => {
+                                    // Find full info from installed mods to get dependencies
+                                    const installedInfo = installedMods.find(im => im.modId === (mod.modId || (mod as any).id))
+                                    const deps = installedInfo?.dependencies || []
+                                    const size = installedInfo?.size || 0
+
+                                    return (
+                                        <TableRow key={mod.modId}>
+                                            <TableCell className="font-medium">{mod.name}</TableCell>
+                                            <TableCell className="font-mono text-xs text-zinc-500">{mod.modId}</TableCell>
+                                            <TableCell className="text-sm text-zinc-400">{size > 0 ? formatBytes(size) : "-"}</TableCell>
+                                            <TableCell>
+                                                <div className="flex flex-wrap gap-1 max-w-[250px]">
+                                                    {deps.length > 0 ? (
+                                                        deps.slice(0, 3).map(depId => (
+                                                            <Badge key={depId} variant="outline" className="text-[10px] py-0 px-1 bg-blue-500/5 border-blue-500/20 text-blue-400/70 whitespace-nowrap" title={depId}>
+                                                                {getModName(depId)}
+                                                            </Badge>
+                                                        ))
+                                                    ) : (
+                                                        <span className="text-zinc-600 text-xs">-</span>
+                                                    )}
+                                                    {deps.length > 3 && (
+                                                        <span className="text-[10px] text-zinc-500">+{deps.length - 3}</span>
+                                                    )}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <div className="flex justify-end gap-1">
+                                                    <div className="flex gap-0.5 mr-4 border-r border-zinc-700 pr-2">
+                                                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => moveEnabledMod(index, 'top')} title="맨 위로"><ChevronsUp className="w-4 h-4" /></Button>
+                                                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => moveEnabledMod(index, 'up')} title="위로"><ChevronUp className="w-4 h-4" /></Button>
+                                                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => moveEnabledMod(index, 'down')} title="아래로"><ChevronDown className="w-4 h-4" /></Button>
+                                                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => moveEnabledMod(index, 'bottom')} title="맨 아래로"><ChevronsDown className="w-4 h-4" /></Button>
                                                     </div>
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    <Button size="sm" variant="ghost" className="text-zinc-500 hover:text-red-400" onClick={() => deleteInstalledMod(m.modId)}>
-                                                        <Trash2 className="w-4 h-4" />
+                                                    <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 hover:bg-red-900/20" onClick={() => removeEnabledMod(mod.modId)}>
+                                                        <Trash2 className="w-4 h-4 mr-1" /> 제거
                                                     </Button>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </ScrollArea></CardContent>
-                        </Card>
-                    </TabsContent>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    )
+                                })}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+            </TabsContent>
 
-                </Tabs>
-            </div>
+            {/* Installed Tab */}
+            <TabsContent value="installed">
+                <Card className="bg-zinc-800/50 border-zinc-700">
+                    <CardHeader><CardTitle>디스크에 설치됨</CardTitle><CardDescription>서버 폴더에 실제로 존재하는 모드 파일들</CardDescription></CardHeader>
+                    <CardContent><ScrollArea className="h-[500px]">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>이름</TableHead>
+                                    <TableHead>ID</TableHead>
+                                    <TableHead>용량</TableHead>
+                                    <TableHead>의존성</TableHead>
+                                    <TableHead className="text-right">관리</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {installedMods.map(m => (
+                                    <TableRow key={m.modId}>
+                                        <TableCell className="font-medium">{m.name}</TableCell>
+                                        <TableCell className="font-mono text-xs text-zinc-500">{m.modId}</TableCell>
+                                        <TableCell className="text-sm text-zinc-400">{m.size ? formatBytes(m.size) : "-"}</TableCell>
+                                        <TableCell>
+                                            <div className="flex flex-wrap gap-1 max-w-[250px]">
+                                                {m.dependencies && m.dependencies.length > 0 ? (
+                                                    m.dependencies.slice(0, 3).map(depId => (
+                                                        <Badge key={depId} variant="outline" className="text-[10px] py-0 px-1 bg-amber-500/5 border-amber-500/20 text-amber-500/70 whitespace-nowrap" title={depId}>
+                                                            {getModName(depId)}
+                                                        </Badge>
+                                                    ))
+                                                ) : (
+                                                    <span className="text-zinc-600 text-xs">-</span>
+                                                )}
+                                                {m.dependencies && m.dependencies.length > 3 && (
+                                                    <span className="text-[10px] text-zinc-500">+{m.dependencies.length - 3}</span>
+                                                )}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <Button size="sm" variant="ghost" className="text-zinc-500 hover:text-red-400" onClick={() => deleteInstalledMod(m.modId)}>
+                                                <Trash2 className="w-4 h-4" />
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </ScrollArea></CardContent>
+                </Card>
+            </TabsContent>
+
+        </Tabs>
+            </div >
         </div >
     )
 }

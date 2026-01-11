@@ -81,6 +81,7 @@ func SetupRoutes(app *fiber.App) {
 	profileHandler := handlers.NewProfileHandler(pm)
 	savesHandler := handlers.NewSavesHandler(sm)
 	collectionHandler := handlers.NewCollectionHandler(collectionMgr)
+	modCategoryHandler := handlers.NewModCategoryHandler(dataPath)
 
 	api := app.Group("/api")
 
@@ -264,6 +265,10 @@ func SetupRoutes(app *fiber.App) {
 	api.Get("/collections", collectionHandler.ListCollections)
 	api.Post("/collections", collectionHandler.SaveCollection)
 	api.Delete("/collections/:id", collectionHandler.DeleteCollection)
+
+	// Mod Categories
+	api.Get("/mods/categories", modCategoryHandler.GetCategories)
+	api.Post("/mods/categories", modCategoryHandler.SetCategory)
 
 	// Scenarios
 	api.Get("/scenarios", baseHandlers.ListScenarios)

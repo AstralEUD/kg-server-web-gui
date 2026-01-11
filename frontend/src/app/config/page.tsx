@@ -189,86 +189,7 @@ export default function ConfigPage() {
         setSaving(false)
     }
 
-    const [syncing, setSyncing] = useState(false)
 
-    const syncToCollection = async () => {
-        if (!config.game.mods || config.game.mods.length === 0) {
-            alert("동기화할 모드가 없습니다.")
-            return
-        }
-
-        setSyncing(true)
-        try {
-            // 1. Get current collections
-            const colRes = await fetch("http://localhost:3000/api/collections", { credentials: "include" })
-            const collections = await colRes.json()
-
-            let targetCollection = collections?.[0]
-            if (!targetCollection) {
-                // Create default collection if none exists
-                const createRes = await fetch("http://localhost:3000/api/collections", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    credentials: "include",
-                    body: JSON.stringify({ name: "My Collection", items: [] })
-                })
-                targetCollection = await createRes.json()
-            }
-
-            const existingItems = targetCollection.items || []
-            const existingIds = new Set(existingItems.map((item: any) => item.modId))
-
-            // 2. Identify new mods that need enrichment
-            const newMods = config.game.mods.filter(m => !existingIds.has(m.modId))
-
-            if (newMods.length === 0) {
-                alert("모든 모드가 이미 컬렉션에 등록되어 있습니다.")
-                setSyncing(false)
-                return
-            }
-
-            // 3. Enrich only NEW mods
-            const enrichRes = await fetch("http://localhost:3000/api/config/enrich", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify({ mods: newMods })
-            })
-
-            if (!enrichRes.ok) throw new Error("Enrich failed")
-            const enrichData = await enrichRes.json()
-
-            // 4. Transform enriched mods to collection items
-            const newItems = enrichData.mods.map((m: any) => ({
-                modId: m.modId,
-                name: m.name,
-                version: "",
-                deps: m.dependencies || []
-            }))
-
-            // 5. Merge and save
-            const mergedItems = [...existingItems, ...newItems]
-
-            await fetch("http://localhost:3000/api/collections", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: { "include": true } as any,
-                body: JSON.stringify({
-                    id: targetCollection.id,
-                    name: targetCollection.name,
-                    items: mergedItems
-                })
-            })
-
-            const scenarioCount = enrichData.scenarios?.length || 0
-            alert(`동기화 완료!\n- 새 모드 ${newItems.length}개가 추가되었습니다.\n- 총 ${mergedItems.length}개의 모드가 관리 중입니다.\n- 시나리오 ${scenarioCount}개 발견됨.`)
-
-        } catch (e) {
-            console.error(e)
-            alert("동기화 실패. 콘솔을 확인하세요.")
-        }
-        setSyncing(false)
-    }
 
     const updateGame = (field: keyof ServerConfig["game"], value: any) => {
         setConfig(prev => ({ ...prev, game: { ...prev.game, [field]: value } }))
@@ -324,10 +245,6 @@ export default function ConfigPage() {
                         <Button className="gap-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700" onClick={saveConfig} disabled={saving}>
                             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                             저장하기
-                        </Button>
-                        <Button variant="secondary" className="gap-2" onClick={syncToCollection} disabled={syncing}>
-                            {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
-                            컬렉션 동기화
                         </Button>
                     </div>
                 </div>
