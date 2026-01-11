@@ -171,7 +171,7 @@ export default function ScenariosPage() {
                                         // s.scenarioId is the GUID usually.
                                         // But sometimes s.scenarioId is the full path?
                                         // Let's check strict equality or contains.
-                                        const isActive = missionHeader.mission && missionHeader.mission.includes(s.scenarioId)
+                                        const isActive = Boolean(missionHeader.mission && missionHeader.mission.includes(s.scenarioId))
 
                                         return (
                                             <div key={s.scenarioId} className={`flex flex-col gap-3 p-3 rounded-lg border transition-all ${isActive ? "bg-emerald-900/20 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)]" : "bg-zinc-900 border-zinc-700 hover:border-zinc-600"}`}>
