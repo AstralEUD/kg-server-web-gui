@@ -1,14 +1,30 @@
-// Append this to the end of the file or appropriate location
+package server
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/astral/kg-server-web-gui/internal/config"
+	"github.com/james4k/rcon"
+)
+
 func (im *InstanceManager) SendRconCommand(id string, command string) (string, error) {
+	var configPath string
+
 	im.mu.RLock()
 	inst, exists := im.instances[id]
+	if exists {
+		configPath = inst.ConfigPath
+	}
 	im.mu.RUnlock()
 
 	if !exists {
 		return "", fmt.Errorf("instance not found: %s", id)
 	}
 
-	configPath := inst.ConfigPath
+	// configPath is already set safely above
 	if configPath == "" {
 		// Fallback for default instance
 		if id == "default" && im.settingsMgr != nil {
@@ -46,8 +62,25 @@ func (im *InstanceManager) SendRconCommand(id string, command string) (string, e
 	}
 
 	address := fmt.Sprintf("127.0.0.1:%d", cfg.Game.RconPort)
-	client := rcon.NewClient(address, cfg.Game.RconPassword)
+	client, err := rcon.Dial(address, cfg.Game.RconPassword)
+	if err != nil {
+		return "", fmt.Errorf("failed to connect to RCON: %w", err)
+	}
 	defer client.Close()
 
-	return client.Send(command)
+	reqID, err := client.Write(command)
+	if err != nil {
+		return "", fmt.Errorf("failed to send RCON command: %w", err)
+	}
+
+	resp, respID, err := client.Read()
+	if err != nil {
+		return "", fmt.Errorf("failed to read RCON response: %w", err)
+	}
+
+	if reqID != respID {
+		return "", fmt.Errorf("RCON response ID mismatch: expected %d, got %d", reqID, respID)
+	}
+
+	return resp, nil
 }

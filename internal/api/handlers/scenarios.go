@@ -3,6 +3,7 @@ package handlers
 import (
 	"strings"
 
+	"github.com/astral/kg-server-web-gui/internal/agent"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -18,7 +19,7 @@ func (h *ApiHandlers) ListScenarios(c *fiber.Ctx) error {
 		addonDirs = strings.Split(addonsPath, ";")
 	}
 
-	scenarios, err := h.Process.ListScenarios(serverPath, addonDirs)
+	scenarios, err := agent.ListScenarios(serverPath, addonDirs)
 	if err != nil {
 		// Just log error but return what we have? or fail?
 		// CLI might return error code even if it prints scenarios.

@@ -16,7 +16,7 @@ type Scenario struct {
 }
 
 // ListScenarios executes the server with -listScenarios and parses output
-func (p *ProcessMonitor) ListScenarios(serverPath string, addonDirs []string) ([]Scenario, error) {
+func ListScenarios(serverPath string, addonDirs []string) ([]Scenario, error) {
 	// Construct arguments
 	// ArmaReforgerServer.exe -addonsDir "..." -listScenarios
 	// Note: It might need -profile to be set to load user mods?
