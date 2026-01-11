@@ -208,13 +208,15 @@ func SetupRoutes(app *fiber.App) {
 			inst := instanceMgr.Get(id)
 			if inst != nil {
 				if !hasConfig && inst.ConfigPath != "" {
-					req.Args = append(req.Args, "-config", inst.ConfigPath)
+					absConfig, _ := filepath.Abs(inst.ConfigPath)
+					req.Args = append(req.Args, "-config", absConfig)
 				}
 				// Autoset profile to profile/<id> if not set, to keep them isolated
 				if !hasProfile {
 					instProfile := filepath.Join(profilePath, id)
-					os.MkdirAll(instProfile, 0755)
-					req.Args = append(req.Args, "-profile", instProfile)
+					absProfile, _ := filepath.Abs(instProfile)
+					os.MkdirAll(absProfile, 0755)
+					req.Args = append(req.Args, "-profile", absProfile)
 				}
 			}
 		}
@@ -223,7 +225,8 @@ func SetupRoutes(app *fiber.App) {
 		if !hasAddons {
 			s := settingsMgr.Get()
 			if s.AddonsPath != "" {
-				req.Args = append(req.Args, "-addonDownloadDir", s.AddonsPath)
+				absAddons, _ := filepath.Abs(s.AddonsPath)
+				req.Args = append(req.Args, "-addonDownloadDir", absAddons)
 			} else {
 				// Default to relative 'addons'
 				absAddons, _ := filepath.Abs("addons")
