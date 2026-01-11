@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -158,11 +159,81 @@ func SetupRoutes(app *fiber.App) {
 		return c.JSON(fiber.Map{"status": "deleted"})
 	})
 	api.Post("/servers/:id/start", func(c *fiber.Ctx) error {
+		id := c.Params("id")
 		var req struct {
 			Args []string `json:"args"`
 		}
-		c.BodyParser(&req)
-		if err := instanceMgr.Start(c.Params("id"), req.Args); err != nil {
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		// Track arguments we want to force
+		hasConfig := false
+		hasProfile := false
+		hasAddons := false
+		hasHeadless := false
+
+		for _, arg := range req.Args {
+			if arg == "-config" {
+				hasConfig = true
+			}
+			if arg == "-profile" {
+				hasProfile = true
+			}
+			if arg == "-addonDownloadDir" {
+				hasAddons = true
+			}
+			if arg == "-server" {
+				hasHeadless = true
+			}
+		}
+
+		// Force headless mode if not present (it's a server manager after all)
+		if !hasHeadless {
+			req.Args = append(req.Args, "-server")
+		}
+
+		// Inject Config and Profile
+		if id == "default" {
+			if !hasConfig {
+				absConfig, _ := filepath.Abs("server.json")
+				req.Args = append(req.Args, "-config", absConfig)
+			}
+			if !hasProfile {
+				absProfile, _ := filepath.Abs("profile")
+				req.Args = append(req.Args, "-profile", absProfile)
+			}
+		} else {
+			// For specific instances
+			inst := instanceMgr.Get(id)
+			if inst != nil {
+				if !hasConfig && inst.ConfigPath != "" {
+					req.Args = append(req.Args, "-config", inst.ConfigPath)
+				}
+				// Autoset profile to profile/<id> if not set, to keep them isolated
+				if !hasProfile {
+					instProfile := filepath.Join(profilePath, id)
+					os.MkdirAll(instProfile, 0755)
+					req.Args = append(req.Args, "-profile", instProfile)
+				}
+			}
+		}
+
+		// Inject Addons Path (Global)
+		if !hasAddons {
+			s := settingsMgr.Get()
+			if s.AddonsPath != "" {
+				req.Args = append(req.Args, "-addonDownloadDir", s.AddonsPath)
+			} else {
+				// Default to relative 'addons'
+				absAddons, _ := filepath.Abs("addons")
+				req.Args = append(req.Args, "-addonDownloadDir", absAddons)
+			}
+		}
+
+		logs.GlobalLogs.Info(fmt.Sprintf("[%s] Starting with args: %v", id, req.Args))
+
+		if err := instanceMgr.Start(id, req.Args); err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 		}
 		return c.JSON(fiber.Map{"status": "started"})
