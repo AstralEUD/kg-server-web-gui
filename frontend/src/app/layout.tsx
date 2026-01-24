@@ -3,8 +3,10 @@
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/sidebar";
+import { MobileNav } from "@/components/mobile-nav";
 import { AuthProvider } from "@/components/auth-provider";
 import { usePathname } from "next/navigation";
+import { Toaster } from "sonner";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -13,7 +15,8 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   const isLoginPage = pathname === "/login"
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex flex-col md:flex-row min-h-screen">
+      {!isLoginPage && <MobileNav />}
       {!isLoginPage && <Sidebar />}
       <main className={`flex-1 overflow-auto ${isLoginPage ? "" : ""}`}>
         {children}
@@ -38,6 +41,7 @@ export default function RootLayout({
       <body className={`${inter.className} bg-zinc-950 text-white antialiased`}>
         <AuthProvider>
           <LayoutContent>{children}</LayoutContent>
+          <Toaster position="bottom-right" theme="dark" richColors />
         </AuthProvider>
       </body>
     </html>

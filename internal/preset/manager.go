@@ -73,9 +73,13 @@ func (pm *PresetManager) Load() error {
 }
 
 func (pm *PresetManager) Save() error {
-	pm.mu.RLock()
-	defer pm.mu.RUnlock()
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	return pm.saveLocked()
+}
 
+// saveLocked saves without acquiring lock - caller must hold lock
+func (pm *PresetManager) saveLocked() error {
 	var presets []*Preset
 	for _, p := range pm.presets {
 		presets = append(presets, p)
@@ -97,7 +101,7 @@ func (pm *PresetManager) Create(p *Preset) error {
 	p.CreatedAt = time.Now()
 	p.UpdatedAt = time.Now()
 	pm.presets[p.ID] = p
-	return pm.Save()
+	return pm.saveLocked()
 }
 
 func (pm *PresetManager) Get(id string) *Preset {
@@ -128,7 +132,7 @@ func (pm *PresetManager) Update(id string, updated *Preset) error {
 	updated.ID = id
 	updated.UpdatedAt = time.Now()
 	pm.presets[id] = updated
-	return pm.Save()
+	return pm.saveLocked()
 }
 
 func (pm *PresetManager) Delete(id string) error {
@@ -136,5 +140,5 @@ func (pm *PresetManager) Delete(id string) error {
 	defer pm.mu.Unlock()
 
 	delete(pm.presets, id)
-	return pm.Save()
+	return pm.saveLocked()
 }

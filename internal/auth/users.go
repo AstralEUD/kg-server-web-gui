@@ -78,9 +78,13 @@ func (um *UserManager) Load() error {
 }
 
 func (um *UserManager) Save() error {
-	um.mu.RLock()
-	defer um.mu.RUnlock()
+	um.mu.Lock()
+	defer um.mu.Unlock()
+	return um.saveLocked()
+}
 
+// saveLocked saves without acquiring lock - caller must hold lock
+func (um *UserManager) saveLocked() error {
 	var users []*User
 	for _, u := range um.users {
 		users = append(users, u)
@@ -97,18 +101,17 @@ func (um *UserManager) Save() error {
 
 func (um *UserManager) Create(username, password, role string) (*User, error) {
 	um.mu.Lock()
+	defer um.mu.Unlock()
 
 	// Check if username exists
 	for _, u := range um.users {
 		if u.Username == username {
-			um.mu.Unlock()
 			return nil, errors.New("username already exists")
 		}
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		um.mu.Unlock()
 		return nil, err
 	}
 
@@ -122,8 +125,7 @@ func (um *UserManager) Create(username, password, role string) (*User, error) {
 	}
 
 	um.users[id] = user
-	um.mu.Unlock()
-	um.Save()
+	um.saveLocked()
 	return user, nil
 }
 
@@ -161,38 +163,38 @@ func (um *UserManager) List() []*User {
 
 func (um *UserManager) Delete(id string) error {
 	um.mu.Lock()
+	defer um.mu.Unlock()
 
 	if _, exists := um.users[id]; !exists {
-		um.mu.Unlock()
 		return errors.New("user not found")
 	}
 	delete(um.users, id)
-	um.mu.Unlock()
-	return um.Save()
+	return um.saveLocked()
 }
 
 func (um *UserManager) ChangePassword(id, newPassword string) error {
 	um.mu.Lock()
+	defer um.mu.Unlock()
 
 	user, exists := um.users[id]
 	if !exists {
-		um.mu.Unlock()
 		return errors.New("user not found")
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 	if err != nil {
-		um.mu.Unlock()
 		return err
 	}
 
 	user.PasswordHash = string(hash)
-	um.mu.Unlock()
-	return um.Save()
+	return um.saveLocked()
 }
 
 func generateID() string {
 	bytes := make([]byte, 16)
-	rand.Read(bytes)
+	if _, err := rand.Read(bytes); err != nil {
+		// Fallback: use time-based ID if crypto/rand fails
+		return hex.EncodeToString([]byte(time.Now().Format(time.RFC3339Nano)))
+	}
 	return hex.EncodeToString(bytes)
 }

@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
+
+	"github.com/bwmarrin/discordgo"
 )
 
 type DiscordClient struct {
@@ -52,6 +55,80 @@ func (d *DiscordClient) SendMessage(title, description string, color int) error 
 	}
 
 	return nil
+}
+
+type DiscordBot struct {
+	session   *discordgo.Session
+	channelID string
+	enabled   bool
+	onCommand func(cmd string, args []string) (string, error)
+}
+
+func NewDiscordBot(token, channelID string, enabled bool) (*DiscordBot, error) {
+	if !enabled || token == "" {
+		return &DiscordBot{enabled: false}, nil
+	}
+
+	dg, err := discordgo.New("Bot " + token)
+	if err != nil {
+		return nil, err
+	}
+
+	bot := &DiscordBot{
+		session:   dg,
+		channelID: channelID,
+		enabled:   true,
+	}
+
+	dg.AddHandler(bot.messageCreate)
+	dg.Identify.Intents = discordgo.IntentsGuildMessages
+
+	if err := dg.Open(); err != nil {
+		return nil, err
+	}
+
+	return bot, nil
+}
+
+func (b *DiscordBot) SetOnCommand(fn func(cmd string, args []string) (string, error)) {
+	b.onCommand = fn
+}
+
+func (b *DiscordBot) Close() {
+	if b.session != nil {
+		b.session.Close()
+	}
+}
+
+func (b *DiscordBot) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
+	if m.Author.ID == s.State.User.ID {
+		return
+	}
+
+	if b.channelID != "" && m.ChannelID != b.channelID {
+		return
+	}
+
+	if !strings.HasPrefix(m.Content, "!") {
+		return
+	}
+
+	parts := strings.Fields(m.Content[1:])
+	if len(parts) == 0 {
+		return
+	}
+
+	cmd := strings.ToLower(parts[0])
+	args := parts[1:]
+
+	if b.onCommand != nil {
+		resp, err := b.onCommand(cmd, args)
+		if err != nil {
+			s.ChannelMessageSend(m.ChannelID, "❌ Error: "+err.Error())
+		} else if resp != "" {
+			s.ChannelMessageSend(m.ChannelID, resp)
+		}
+	}
 }
 
 // Color constants

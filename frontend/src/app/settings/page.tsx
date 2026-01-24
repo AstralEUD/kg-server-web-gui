@@ -6,7 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Cog, FolderOpen, Save, Server, Package, User, Loader2, CheckCircle } from "lucide-react"
+import { Cog, FolderOpen, Save, Server, Package, User, Loader2, CheckCircle, Download, Upload } from "lucide-react"
+import { toast } from "sonner"
+
+import { apiFetch } from "@/lib/api"
 
 interface AppSettings {
     serverPath: string
@@ -16,6 +19,12 @@ interface AppSettings {
     defaultServerName: string
     discordWebhookUrl: string
     enableWatchdog: boolean
+    // Discord Bot
+    discordBotToken: string
+    discordChannelId: string
+    enableDiscordBot: boolean
+    // RCON Monitor
+    enableRconMonitor: boolean
 }
 
 export default function SettingsPage() {
@@ -26,7 +35,11 @@ export default function SettingsPage() {
         steamcmdPath: "",
         defaultServerName: "default",
         discordWebhookUrl: "",
-        enableWatchdog: false
+        enableWatchdog: false,
+        discordBotToken: "",
+        discordChannelId: "",
+        enableDiscordBot: false,
+        enableRconMonitor: false
     })
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
@@ -39,7 +52,7 @@ export default function SettingsPage() {
     const fetchSettings = async () => {
         setLoading(true)
         try {
-            const res = await fetch("http://localhost:3000/api/settings", { credentials: "include" })
+            const res = await apiFetch("/api/settings")
             if (res.ok) {
                 const data = await res.json()
                 setSettings(data)
@@ -54,20 +67,63 @@ export default function SettingsPage() {
         setSaving(true)
         setSaved(false)
         try {
-            const res = await fetch("http://localhost:3000/api/settings", {
+            const res = await apiFetch("/api/settings", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
                 body: JSON.stringify(settings)
             })
             if (res.ok) {
                 setSaved(true)
+                toast.success("설정이 저장되었습니다.")
                 setTimeout(() => setSaved(false), 3000)
             }
         } catch (e) {
-            console.error("설정 저장 실패", e)
+            toast.error("설정 저장에 실패했습니다.")
         }
         setSaving(false)
+    }
+
+    const exportSettings = async () => {
+        try {
+            const res = await apiFetch("/api/settings/export")
+            if (res.ok) {
+                const data = await res.json()
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement("a")
+                a.href = url
+                a.download = `kg_manager_backup_${new Date().toISOString().split('T')[0]}.json`
+                a.click()
+                toast.success("백업 파일이 다운로드되었습니다.")
+            }
+        } catch (e) {
+            toast.error("백업 생성 중 오류가 발생했습니다.")
+        }
+    }
+
+    const importSettings = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        const reader = new FileReader()
+        reader.onload = async (event) => {
+            try {
+                const content = event.target?.result as string
+                const data = JSON.parse(content)
+                const res = await apiFetch("/api/settings/import", {
+                    method: "POST",
+                    body: JSON.stringify(data)
+                })
+                if (res.ok) {
+                    toast.success("백업을 성공적으로 불러왔습니다. 페이지를 새로고침하세요.")
+                    fetchSettings()
+                } else {
+                    toast.error("백업 파일 형식이 올바르지 않습니다.")
+                }
+            } catch (e) {
+                toast.error("백업 불러오기 중 오류가 발생했습니다.")
+            }
+        }
+        reader.readAsText(file)
     }
 
     const updateSetting = (key: keyof AppSettings, value: string | boolean) => {
@@ -104,6 +160,7 @@ export default function SettingsPage() {
                         <TabsTrigger value="paths">경로 설정</TabsTrigger>
                         <TabsTrigger value="general">일반 설정</TabsTrigger>
                         <TabsTrigger value="monitoring">모니터링 & 알림</TabsTrigger>
+                        <TabsTrigger value="backup">백업 및 복구</TabsTrigger>
                     </TabsList>
 
                     {/* Paths Tab */}
@@ -267,6 +324,135 @@ export default function SettingsPage() {
                                         onChange={e => updateSetting("discordWebhookUrl", e.target.value)}
                                     />
                                     <p className="text-xs text-zinc-500">서버 상태 변경(시작, 중지, 충돌)시 알림을 보낼 Webhook 주소</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Discord Bot Settings */}
+                        <Card className="bg-zinc-800/50 border-zinc-700">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <span className="text-purple-400 font-bold">Discord Bot</span> 채팅 명령어
+                                </CardTitle>
+                                <CardDescription>
+                                    Discord에서 !map, !maps 등의 명령어를 사용합니다.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                                <div className="flex items-center justify-between p-4 bg-zinc-900 rounded-lg border border-zinc-700">
+                                    <div>
+                                        <Label className="font-semibold text-base">Discord Bot 활성화</Label>
+                                        <p className="text-sm text-zinc-400">Discord 채팅에서 맵 변경 명령어를 사용합니다.</p>
+                                    </div>
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            className="sr-only peer"
+                                            checked={settings.enableDiscordBot}
+                                            onChange={(e) => updateSetting("enableDiscordBot", e.target.checked)}
+                                        />
+                                        <div className="w-11 h-6 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                                    </label>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label>Bot Token</Label>
+                                    <Input
+                                        type="password"
+                                        placeholder="Discord Developer Portal에서 발급받은 Bot Token"
+                                        className="bg-zinc-900 border-zinc-700"
+                                        value={settings.discordBotToken}
+                                        onChange={e => updateSetting("discordBotToken", e.target.value)}
+                                    />
+                                    <p className="text-xs text-zinc-500">
+                                        <a href="https://discord.com/developers/applications" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:underline">
+                                            Discord Developer Portal
+                                        </a>에서 Bot을 생성하고 Token을 발급받으세요.
+                                    </p>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label>Channel ID (선택)</Label>
+                                    <Input
+                                        placeholder="명령어를 수신할 채널 ID (비워두면 모든 채널)"
+                                        className="bg-zinc-900 border-zinc-700"
+                                        value={settings.discordChannelId}
+                                        onChange={e => updateSetting("discordChannelId", e.target.value)}
+                                    />
+                                    <p className="text-xs text-zinc-500">특정 채널에서만 명령어를 처리하려면 채널 ID를 입력하세요.</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* RCON Monitor Settings */}
+                        <Card className="bg-zinc-800/50 border-zinc-700">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <span className="text-cyan-400 font-bold">게임 내</span> 채팅 명령어
+                                </CardTitle>
+                                <CardDescription>
+                                    게임 내에서 !map, !maps 등의 명령어를 사용합니다. (RCON 필요)
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                                <div className="flex items-center justify-between p-4 bg-zinc-900 rounded-lg border border-zinc-700">
+                                    <div>
+                                        <Label className="font-semibold text-base">RCON 채팅 모니터 활성화</Label>
+                                        <p className="text-sm text-zinc-400">게임 채팅을 모니터링하여 명령어를 처리합니다.</p>
+                                        <p className="text-xs text-yellow-500 mt-1">⚠️ server.json에 RCON이 설정되어 있어야 합니다.</p>
+                                    </div>
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            className="sr-only peer"
+                                            checked={settings.enableRconMonitor}
+                                            onChange={(e) => updateSetting("enableRconMonitor", e.target.checked)}
+                                        />
+                                        <div className="w-11 h-6 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600"></div>
+                                    </label>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    <TabsContent value="backup">
+                        <Card className="bg-zinc-800/50 border-zinc-700">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Download className="w-5 h-5 text-blue-400" /> 데이터 백업 및 복구
+                                </CardTitle>
+                                <CardDescription>
+                                    현재 설정, 맵 매핑, 스케줄러 작업을 하나로 묶어 내보내거나 가져옵니다.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="p-4 bg-zinc-900 rounded-lg border border-zinc-700 space-y-3">
+                                        <h3 className="font-semibold flex items-center gap-2">
+                                            <Download className="w-4 h-4" /> 설정 내보내기
+                                        </h3>
+                                        <p className="text-sm text-zinc-400">모든 구성을 JSON 파일로 다운로드합니다.</p>
+                                        <Button onClick={exportSettings} variant="outline" className="w-full bg-zinc-800 border-zinc-700">
+                                            지금 백업하기
+                                        </Button>
+                                    </div>
+                                    <div className="p-4 bg-zinc-900 rounded-lg border border-zinc-700 space-y-3">
+                                        <h3 className="font-semibold flex items-center gap-2">
+                                            <Upload className="w-4 h-4" /> 백업 불러오기
+                                        </h3>
+                                        <p className="text-sm text-zinc-400">이전에 저장한 백업 파일을 불러옵니다.</p>
+                                        <div className="relative">
+                                            <input
+                                                type="file"
+                                                accept=".json"
+                                                onChange={importSettings}
+                                                className="absolute inset-0 opacity-0 cursor-pointer"
+                                            />
+                                            <Button variant="outline" className="w-full bg-zinc-800 border-zinc-700">
+                                                파일 선택...
+                                            </Button>
+                                        </div>
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>

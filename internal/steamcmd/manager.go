@@ -193,8 +193,21 @@ func extractZip(src, dest string) error {
 	}
 	defer r.Close()
 
+	// Clean and get absolute path of destination
+	dest, err = filepath.Abs(dest)
+	if err != nil {
+		return err
+	}
+
 	for _, f := range r.File {
+		// Fix #8: Zip Slip protection
 		fpath := filepath.Join(dest, f.Name)
+
+		// Ensure the file path is within the destination directory
+		if !strings.HasPrefix(filepath.Clean(fpath), filepath.Clean(dest)+string(os.PathSeparator)) {
+			return fmt.Errorf("illegal file path in zip: %s", f.Name)
+		}
+
 		if f.FileInfo().IsDir() {
 			os.MkdirAll(fpath, 0755)
 			continue

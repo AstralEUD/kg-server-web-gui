@@ -1,6 +1,10 @@
 package handlers
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+
 	"github.com/astral/kg-server-web-gui/internal/agent"
 	"github.com/astral/kg-server-web-gui/internal/config"
 	"github.com/astral/kg-server-web-gui/internal/monitor"
@@ -119,7 +123,43 @@ func (h *ApiHandlers) SendRcon(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
+	h.recordCommand(req.Command)
+
 	return c.JSON(fiber.Map{
 		"response": resp,
 	})
+}
+
+// GetCrashes returns the list of detected crash events
+func (h *ApiHandlers) GetCrashes(c *fiber.Ctx) error {
+	return c.JSON(h.Watchdog.GetCrashes())
+}
+
+// GetCommandHistory returns the recent RCON command history
+func (h *ApiHandlers) GetCommandHistory(c *fiber.Ctx) error {
+	path := filepath.Join(h.Manager.GetDataPath(), "command_history.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return c.JSON([]string{})
+	}
+	var history []string
+	json.Unmarshal(data, &history)
+	return c.JSON(history)
+}
+
+func (h *ApiHandlers) recordCommand(cmd string) {
+	path := filepath.Join(h.Manager.GetDataPath(), "command_history.json")
+	var history []string
+	if data, err := os.ReadFile(path); err == nil {
+		json.Unmarshal(data, &history)
+	}
+
+	// Add to front, limit to 100
+	history = append([]string{cmd}, history...)
+	if len(history) > 100 {
+		history = history[:100]
+	}
+
+	data, _ := json.MarshalIndent(history, "", "  ")
+	os.WriteFile(path, data, 0644)
 }

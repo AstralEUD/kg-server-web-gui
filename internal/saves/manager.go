@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"time"
 )
@@ -80,6 +81,11 @@ func (m *SaveManager) ListBackups() ([]SaveFile, error) {
 	}
 
 	for _, entry := range entries {
+		// Fix #14: Skip directories
+		if entry.IsDir() {
+			continue
+		}
+
 		info, err := entry.Info()
 		if err != nil {
 			continue
@@ -129,9 +135,14 @@ func (m *SaveManager) CreateBackup(saveName string) (string, error) {
 func (m *SaveManager) RestoreBackup(backupName string) error {
 	srcPath := filepath.Join(m.backupPath, backupName)
 
-	// Extract original name (remove _backup_timestamp)
-	// Simple approach: just use backup name directly for restore target
-	dstPath := filepath.Join(m.savesPath, backupName)
+	// Fix #7: Extract original name by removing _backup_YYYYMMDD_HHMMSS suffix
+	originalName := backupName
+	backupPattern := regexp.MustCompile(`^(.+)_backup_\d{8}_\d{6}$`)
+	if matches := backupPattern.FindStringSubmatch(backupName); len(matches) == 2 {
+		originalName = matches[1]
+	}
+
+	dstPath := filepath.Join(m.savesPath, originalName)
 
 	input, err := os.ReadFile(srcPath)
 	if err != nil {

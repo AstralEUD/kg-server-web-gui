@@ -19,6 +19,7 @@ type AddonInfo struct {
 	LastUpdated  string       `json:"lastUpdated"`
 	License      string       `json:"license"`
 	Tags         []string     `json:"tags"`
+	ImageURL     string       `json:"imageUrl"`
 	Dependencies []Dependency `json:"dependencies"`
 	Scenarios    []Scenario   `json:"scenarios"`
 }
@@ -93,6 +94,18 @@ func scrapeAddonPage(url string) (*AddonInfo, error) {
 
 	// Title (h1)
 	info.Name = strings.TrimSpace(doc.Find("h1").First().Text())
+
+	// Image (og:image or first big image)
+	img, exists := doc.Find("meta[property='og:image']").Attr("content")
+	if exists {
+		info.ImageURL = img
+	} else {
+		// Fallback to searching for an image in the workshop card or main content
+		imgSrc, exists := doc.Find("img[src*='/workshop/']").First().Attr("src")
+		if exists {
+			info.ImageURL = imgSrc
+		}
+	}
 
 	// Summary (in code block after Summary heading)
 	doc.Find("h2").Each(func(i int, s *goquery.Selection) {
@@ -265,4 +278,47 @@ func SearchWorkshop(query string) ([]AddonInfo, error) {
 	})
 
 	return results, nil
+}
+
+// ResolveDependencies recursively finds all dependencies for a list of root addons
+func ResolveDependencies(rootIDs []string) ([]AddonInfo, error) {
+	resolved := make(map[string]AddonInfo)
+	pending := append([]string{}, rootIDs...)
+	processed := make(map[string]bool)
+
+	// Maximum depth to prevent infinite loops (rare but possible)
+	for depth := 0; depth < 5 && len(pending) > 0; depth++ {
+		var nextPending []string
+		for _, id := range pending {
+			if processed[id] {
+				continue
+			}
+			processed[id] = true
+
+			// Fetch info for this addon
+			info, err := GetAddonInfo(id)
+			if err != nil {
+				continue // Skip failed items
+			}
+
+			// Add to resolved map (avoid duplicates)
+			if _, exists := resolved[id]; !exists {
+				resolved[id] = *info
+			}
+
+			// Add dependencies to next batch
+			for _, dep := range info.Dependencies {
+				if !processed[dep.ID] {
+					nextPending = append(nextPending, dep.ID)
+				}
+			}
+		}
+		pending = nextPending
+	}
+
+	var result []AddonInfo
+	for _, info := range resolved {
+		result = append(result, info)
+	}
+	return result, nil
 }

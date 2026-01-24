@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Lock, User, Loader2, AlertCircle } from "lucide-react"
+import { apiFetch } from "@/lib/api"
 
 export default function LoginPage() {
     const router = useRouter()
@@ -21,10 +22,8 @@ export default function LoginPage() {
         setLoading(true)
 
         try {
-            const res = await fetch("http://localhost:3000/api/auth/login", {
+            const res = await apiFetch("/api/auth/login", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
                 body: JSON.stringify({ username, password }),
             })
 
@@ -36,7 +35,7 @@ export default function LoginPage() {
                 return
             }
 
-            localStorage.setItem("auth_token", data.token)
+            // Fix #9: Don't store token in localStorage, rely on httpOnly cookie
             localStorage.setItem("username", data.username)
             localStorage.setItem("role", data.role)
 

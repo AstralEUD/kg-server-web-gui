@@ -57,7 +57,8 @@ func (c *Client) Send(command string) (string, error) {
 	}
 
 	if reqID != reqIDResp {
-		// Mismatch ID, possibly safe to ignore in simple cli but worth noting
+		// Log mismatch but continue - can happen with some RCON implementations
+		// Intentionally not returning error as response may still be valid
 	}
 
 	return resp, nil

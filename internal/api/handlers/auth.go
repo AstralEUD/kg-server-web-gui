@@ -80,7 +80,10 @@ func (h *AuthHandler) ChangePassword(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid request"})
 	}
 
-	userId := c.Locals("userId").(string)
+	userId, ok := c.Locals("userId").(string)
+	if !ok || userId == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
 	user := h.users.GetByID(userId)
 	if user == nil {
 		return c.Status(404).JSON(fiber.Map{"error": "user not found"})
@@ -146,7 +149,8 @@ func (h *AuthHandler) DeleteUser(c *fiber.Ctx) error {
 	id := c.Params("id")
 
 	// Prevent self-deletion
-	if id == c.Locals("userId") {
+	currentUserId, _ := c.Locals("userId").(string)
+	if id == currentUserId {
 		return c.Status(400).JSON(fiber.Map{"error": "cannot delete yourself"})
 	}
 

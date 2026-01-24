@@ -11,6 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Users, Plus, Trash2, Loader2, Shield, User as UserIcon } from "lucide-react"
 
+import { apiFetch } from "@/lib/api"
+
 interface User {
     id: string
     username: string
@@ -34,7 +36,7 @@ export default function UsersPage() {
     const fetchUsers = async () => {
         setLoading(true)
         try {
-            const res = await fetch("http://localhost:3000/api/admin/users", { credentials: "include" })
+            const res = await apiFetch("/api/admin/users")
             if (res.ok) {
                 const data = await res.json()
                 setUsers(data || [])
@@ -49,10 +51,8 @@ export default function UsersPage() {
         if (!newUsername || !newPassword) return
         setCreating(true)
         try {
-            const res = await fetch("http://localhost:3000/api/admin/users", {
+            const res = await apiFetch("/api/admin/users", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
                 body: JSON.stringify({
                     username: newUsername,
                     password: newPassword,
@@ -75,9 +75,8 @@ export default function UsersPage() {
     const deleteUser = async (id: string) => {
         if (!confirm("Are you sure you want to delete this user?")) return
         try {
-            const res = await fetch(`http://localhost:3000/api/admin/users/${id}`, {
+            const res = await apiFetch(`/api/admin/users/${id}`, {
                 method: "DELETE",
-                credentials: "include",
             })
             if (res.ok) {
                 fetchUsers()

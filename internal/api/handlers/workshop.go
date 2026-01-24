@@ -28,3 +28,19 @@ func (h *ApiHandlers) GetWorkshopInfo(c *fiber.Ctx) error {
 	}
 	return c.JSON(info)
 }
+
+// ResolveDependencies finds all sub-dependencies for given mod IDs
+func (h *ApiHandlers) ResolveDependencies(c *fiber.Ctx) error {
+	var req struct {
+		IDs []string `json:"ids"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	results, err := workshop.ResolveDependencies(req.IDs)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(results)
+}

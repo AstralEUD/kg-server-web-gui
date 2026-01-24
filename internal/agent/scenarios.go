@@ -11,8 +11,9 @@ import (
 )
 
 type Scenario struct {
-	ID   string `json:"scenarioId"`
-	Name string `json:"name"`
+	ID    string `json:"scenarioId"`
+	Name  string `json:"name"`
+	ModID string `json:"modId,omitempty"`
 }
 
 // ListScenarios executes the server with -listScenarios and parses output
@@ -69,17 +70,17 @@ func parseScenarios(output string, addonDirs []string) []Scenario {
 		line = strings.TrimSpace(line)
 		match := re.FindString(line)
 		if match != "" {
-			parts := strings.Split(match, "/")
-			name := match
-			if len(parts) > 1 {
-				name = parts[len(parts)-1]
-				name = strings.TrimSuffix(name, ".conf")
+			// Extract GUID for ModID
+			modID := ""
+			guidMatch := regexp.MustCompile(`\{([A-F0-9-]+)\}`).FindStringSubmatch(match)
+			if len(guidMatch) > 1 {
+				modID = guidMatch[1]
 			}
 
 			// Only add if not already present (prioritize CLI output if we want? or Vanilla?
 			// Actually if CLI finds it, it might have same ID but different name display?
 			// Let's overwrite with CLI found ones as they verify presence.
-			scenariosMap[match] = Scenario{ID: match, Name: name}
+			scenariosMap[match] = Scenario{ID: match, Name: name, ModID: modID}
 		}
 	}
 
@@ -152,7 +153,7 @@ func ScanScenariosFromAddons(roots []string) []Scenario {
 								}
 							}
 
-							scenarios = append(scenarios, Scenario{ID: id, Name: name})
+							scenarios = append(scenarios, Scenario{ID: id, Name: name, ModID: guid})
 						}
 						return nil
 					})

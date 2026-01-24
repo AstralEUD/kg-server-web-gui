@@ -1,7 +1,10 @@
 package agent
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -18,21 +21,53 @@ type Watchdog struct {
 
 	// Multi-instance tracking
 	instances map[string]*WatchedInstance
+	crashes   []CrashEvent
+	dataPath  string
+}
+
+type CrashEvent struct {
+	Timestamp  time.Time `json:"timestamp"`
+	InstanceID string    `json:"instanceId"`
+	Reason     string    `json:"reason"`
 }
 
 type WatchedInstance struct {
 	ID           string
+	ServerPath   string // Path to server executable
 	Args         []string
 	Process      *ProcessMonitor
 	RestartCount int
 	LastRestart  time.Time
 }
 
-func NewWatchdog(discord *DiscordClient) *Watchdog {
-	return &Watchdog{
+func NewWatchdog(discord *DiscordClient, dataPath string) *Watchdog {
+	w := &Watchdog{
 		discord:   discord,
 		instances: make(map[string]*WatchedInstance),
+		dataPath:  dataPath,
 	}
+	w.loadCrashes()
+	return w
+}
+
+func (w *Watchdog) loadCrashes() {
+	path := filepath.Join(w.dataPath, "crashes.json")
+	if _, err := os.Stat(path); err == nil {
+		data, _ := os.ReadFile(path)
+		json.Unmarshal(data, &w.crashes)
+	}
+}
+
+func (w *Watchdog) saveCrashes() {
+	path := filepath.Join(w.dataPath, "crashes.json")
+	data, _ := json.MarshalIndent(w.crashes, "", "  ")
+	os.WriteFile(path, data, 0644)
+}
+
+func (w *Watchdog) GetCrashes() []CrashEvent {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return w.crashes
 }
 
 func (w *Watchdog) SetEnabled(enabled bool) {
@@ -57,14 +92,15 @@ func (w *Watchdog) IsEnabled() bool {
 }
 
 // RegisterInstance registers the arguments and monitor needed to restart the server
-func (w *Watchdog) RegisterInstance(id string, args []string, proc *ProcessMonitor) {
+func (w *Watchdog) RegisterInstance(id string, serverPath string, args []string, proc *ProcessMonitor) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
 	w.instances[id] = &WatchedInstance{
-		ID:      id,
-		Args:    args,
-		Process: proc,
+		ID:         id,
+		ServerPath: serverPath,
+		Args:       args,
+		Process:    proc,
 	}
 }
 
@@ -136,8 +172,20 @@ func (w *Watchdog) checkInstance(inst *WatchedInstance) {
 		logs.GlobalLogs.Warn(fmt.Sprintf("Watchdog detected server %s down! Restarting... (%d/3)", inst.ID, inst.RestartCount+1))
 		w.discord.SendMessage("⚠️ Server Crash Detected", fmt.Sprintf("Server **%s** is down. Restarting... (Attempt %d/3)", inst.ID, inst.RestartCount+1), ColorYellow)
 
-		// Restart
-		if err := inst.Process.Start("", inst.Args); err != nil {
+		// Record Crash
+		event := CrashEvent{
+			Timestamp:  now,
+			InstanceID: inst.ID,
+			Reason:     "Process not running",
+		}
+		w.crashes = append(w.crashes, event)
+		if len(w.crashes) > 50 {
+			w.crashes = w.crashes[1:]
+		}
+		w.saveCrashes()
+
+		// Restart - use saved ServerPath
+		if err := inst.Process.Start(inst.ServerPath, inst.Args); err != nil {
 			logs.GlobalLogs.Error(fmt.Sprintf("Watchdog restart failed for %s: %v", inst.ID, err))
 			w.discord.SendMessage("❌ Restart Failed", fmt.Sprintf("Failed to restart server %s: %v", inst.ID, err), ColorRed)
 		} else {

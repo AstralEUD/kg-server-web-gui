@@ -8,7 +8,10 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, Package, Plus, Trash2, Download, RefreshCw, ArrowUpDown, ExternalLink, Loader2, AlertTriangle, CheckCircle, Save, FolderHeart, List, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, Database } from "lucide-react"
+import { Search, Package, Plus, Trash2, Download, RefreshCw, ArrowUpDown, ExternalLink, Loader2, AlertTriangle, CheckCircle, Save, FolderHeart, List, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, Database, GitGraph } from "lucide-react"
+import { toast } from "sonner"
+import { apiFetch } from "@/lib/api"
+import DependencyTree from "@/components/DependencyTree"
 
 function formatBytes(bytes: number) {
     if (typeof bytes !== 'number' || isNaN(bytes)) return '0 Bytes';
@@ -56,6 +59,11 @@ export default function ModsPage() {
     const [collectionSortKey, setCollectionSortKey] = useState<'name' | 'size' | 'category'>('category')
     const [collectionSortOrder, setCollectionSortOrder] = useState<'asc' | 'desc'>('asc')
 
+    const [treeTarget, setTreeTarget] = useState<any>(null)
+    const [treeLoading, setTreeLoading] = useState(false)
+    const [modCategories, setModCategories] = useState<Record<string, string>>({})
+    const [filterCategory, setFilterCategory] = useState<string>("All")
+
     useEffect(() => {
         fetchInstalledMods()
         fetchConfig()
@@ -69,7 +77,7 @@ export default function ModsPage() {
     const fetchInstalledMods = async () => {
         setLoading(true)
         try {
-            const res = await fetch("http://localhost:3000/api/mods", { credentials: "include" })
+            const res = await apiFetch("/api/mods")
             if (res.ok) setInstalledMods(await res.json() || [])
         } catch (e) { console.error(e) }
         setLoading(false)
@@ -77,7 +85,7 @@ export default function ModsPage() {
 
     const fetchCategories = async () => {
         try {
-            const res = await fetch("http://localhost:3000/api/mods/categories", { credentials: "include" })
+            const res = await apiFetch("/api/mods/categories")
             if (res.ok) setModCategories(await res.json())
         } catch (e) {
             console.error(e)
@@ -88,11 +96,9 @@ export default function ModsPage() {
         setModCategories(prev => ({ ...prev, [modId]: category }))
 
         try {
-            await fetch("http://localhost:3000/api/mods/categories", {
+            await apiFetch("/api/mods/categories", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ modId, category }),
-                credentials: "include"
             })
         } catch (e) {
             console.error("Failed to save category", e)
@@ -113,7 +119,7 @@ export default function ModsPage() {
     // Config Mods
     const fetchConfig = async () => {
         try {
-            const res = await fetch("http://localhost:3000/api/config", { credentials: "include" })
+            const res = await apiFetch("/api/config")
             if (res.ok) {
                 const data = await res.json()
                 if (data.game?.mods && Array.isArray(data.game.mods)) {
@@ -144,7 +150,7 @@ export default function ModsPage() {
 
     const fetchCollections = async () => {
         try {
-            const res = await fetch("http://localhost:3000/api/collections", { credentials: "include" })
+            const res = await apiFetch("/api/collections")
             if (res.ok) {
                 const cols = await res.json()
                 setCollections(cols || [])
@@ -170,11 +176,9 @@ export default function ModsPage() {
 
     const createDefaultCollection = async () => {
         try {
-            const res = await fetch("http://localhost:3000/api/collections", {
+            const res = await apiFetch("/api/collections", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ name: "My Collection", items: [] }),
-                credentials: "include"
             })
             if (res.ok) {
                 fetchCollections()
@@ -188,7 +192,7 @@ export default function ModsPage() {
         setSearching(true)
         setSelectedAddon(null)
         try {
-            const res = await fetch(`http://localhost:3000/api/workshop/${encodeURIComponent(workshopQuery)}`, { credentials: "include" })
+            const res = await apiFetch(`/api/workshop/${encodeURIComponent(workshopQuery)}`)
             if (res.ok) {
                 const data = await res.json()
                 if (data && data.id) setSelectedAddon(data)
@@ -211,9 +215,8 @@ export default function ModsPage() {
             const current = collections.find(c => c.id === activeCollectionId)
             const name = current ? current.name : "My Collection"
 
-            await fetch("http://localhost:3000/api/collections", {
+            await apiFetch("/api/collections", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     id: activeCollectionId,
                     name: name,
@@ -224,7 +227,6 @@ export default function ModsPage() {
                         deps: m.dependencies
                     }))
                 }),
-                credentials: "include"
             })
             // Optionally refresh cols
         } catch (e) { console.error(e) }
@@ -235,7 +237,7 @@ export default function ModsPage() {
         setAddingToConfig(true)
         try {
             // Get current config
-            const configRes = await fetch("http://localhost:3000/api/config", { credentials: "include" })
+            const configRes = await apiFetch("/api/config")
             if (!configRes.ok) throw new Error("Load failed")
             const config = await configRes.json()
 
@@ -247,10 +249,8 @@ export default function ModsPage() {
             }
 
             // Save
-            await fetch("http://localhost:3000/api/config", {
+            await apiFetch("/api/config", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
                 body: JSON.stringify(config)
             })
             fetchConfig() // Refresh enabled list
@@ -261,7 +261,7 @@ export default function ModsPage() {
     const saveEnabledModsToConfig = async (newEnabled: Mod[]) => {
         setAddingToConfig(true)
         try {
-            const configRes = await fetch("http://localhost:3000/api/config", { credentials: "include" })
+            const configRes = await apiFetch("/api/config")
             if (!configRes.ok) throw new Error("Load failed")
             const config = await configRes.json()
 
@@ -272,10 +272,8 @@ export default function ModsPage() {
                 version: m.version || ""
             }))
 
-            await fetch("http://localhost:3000/api/config", {
+            await apiFetch("/api/config", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
                 body: JSON.stringify(config)
             })
         } catch (e) {
@@ -308,16 +306,14 @@ export default function ModsPage() {
         setSyncing(true)
         try {
             // 1. Get current collections
-            const colRes = await fetch("http://localhost:3000/api/collections", { credentials: "include" })
+            const colRes = await apiFetch("/api/collections")
             const collections = await colRes.json()
 
             let targetCollection = collections?.[0]
             if (!targetCollection) {
                 // Create default collection if none exists
-                const createRes = await fetch("http://localhost:3000/api/collections", {
+                const createRes = await apiFetch("/api/collections", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    credentials: "include",
                     body: JSON.stringify({ name: "My Collection", items: [] })
                 })
                 targetCollection = await createRes.json()
@@ -336,10 +332,8 @@ export default function ModsPage() {
             }
 
             // 3. Enrich only NEW mods
-            const enrichRes = await fetch("http://localhost:3000/api/config/enrich", {
+            const enrichRes = await apiFetch("/api/config/enrich", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
                 body: JSON.stringify({ mods: newMods })
             })
 
@@ -357,10 +351,8 @@ export default function ModsPage() {
             // 5. Merge and save
             const mergedItems = [...existingItems, ...newItems]
 
-            await fetch("http://localhost:3000/api/collections", {
+            await apiFetch("/api/collections", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
                 body: JSON.stringify({
                     id: targetCollection.id,
                     name: targetCollection.name,
@@ -387,7 +379,12 @@ export default function ModsPage() {
         }
     }
 
-    const sortedCollection = [...collectionMods].sort((a, b) => {
+    const filteredCollection = collectionMods.filter(m => {
+        if (filterCategory === "All") return true
+        return modCategories[m.modId] === filterCategory
+    })
+
+    const sortedCollection = [...filteredCollection].sort((a, b) => {
         let valA: any
         let valB: any
 
@@ -412,74 +409,96 @@ export default function ModsPage() {
         return 0
     })
 
-    // Add to Collection (Recursive)
+    const uniqueCategories = ["All", ...Array.from(new Set(Object.values(modCategories))).filter(Boolean)]
+
     const getModName = (modId: string) => {
         const found = installedMods.find(m => m.modId === modId) || collectionMods.find(m => m.modId === modId)
         return found ? found.name : modId
     }
 
+    // Add to Collection (Optimized using Backend Resolve)
     const addToCollection = async () => {
         if (!selectedAddon) return
 
         setLoading(true)
-        const newModsMap = new Map<string, Mod>()
+        try {
+            const res = await apiFetch("/api/workshop/resolve", {
+                method: "POST",
+                body: JSON.stringify({ ids: [selectedAddon.id] })
+            })
 
-        // Add existing to map
-        collectionMods.forEach(m => newModsMap.set(m.modId, m))
+            if (res.ok) {
+                const resolvedList: WorkshopAddon[] = await res.json()
+                const newModsMap = new Map<string, Mod>()
 
-        // Helper to recursively fetch
-        const resolve = async (id: string, name: string): Promise<void> => {
-            if (newModsMap.has(id)) return // Already added
+                // Keep existing
+                collectionMods.forEach(m => newModsMap.set(m.modId, m))
 
-            // Fetch details to get deps
-            try {
-                const res = await fetch(`http://localhost:3000/api/workshop/${id}`, { credentials: "include" })
-                if (res.ok) {
-                    const info: WorkshopAddon = await res.json()
-                    // Add this mod
-                    newModsMap.set(info.id, {
-                        modId: info.id,
-                        name: info.name,
-                        version: (info as any).version || "",
-                        path: "",
-                        dependencies: (info.dependencies || []).map(d => d.id)
-                    })
-
-                    // Recurse for deps
-                    if (info.dependencies) {
-                        for (const dep of info.dependencies) {
-                            await resolve(dep.id, dep.name)
-                        }
+                // Add resolved
+                resolvedList.forEach(info => {
+                    if (!newModsMap.has(info.id)) {
+                        newModsMap.set(info.id, {
+                            modId: info.id,
+                            name: info.name,
+                            version: (info as any).version || "",
+                            path: "",
+                            dependencies: (info.dependencies || []).map(d => d.id)
+                        })
                     }
-                } else {
-                    // Fallback if fetch fails (e.g. invalid ID or hidden), just add what we know
-                    if (!newModsMap.has(id)) {
-                        newModsMap.set(id, { modId: id, name: name, version: "", path: "", dependencies: [] })
-                    }
-                }
-            } catch (e) { console.error(e) }
+                })
+
+                await saveCollectionToBackend(Array.from(newModsMap.values()))
+                toast.success(`${resolvedList.length}개의 모드와 의존성이 추가되었습니다.`)
+            }
+        } catch (e) {
+            toast.error("의존성 해결 중 오류가 발생했습니다.")
         }
+        setLoading(false)
+    }
 
-        // Start resolution with selected addon (we already have its info, but good to normalize)
-        // We can optimize by using selectedAddon directly for the first level
-        newModsMap.set(selectedAddon.id, {
-            modId: selectedAddon.id,
-            name: selectedAddon.name,
-            version: (selectedAddon as any).version || "",
-            path: "",
-            dependencies: (selectedAddon.dependencies || []).map(d => d.id)
+    const togglePinVersion = async (modId: string, currentVersion: string, isPinned: boolean) => {
+        const newMods = collectionMods.map(m => {
+            if (m.modId === modId) {
+                return { ...m, version: isPinned ? "" : (currentVersion || "1.0.0") }
+            }
+            return m
         })
+        await saveCollectionToBackend(newMods)
+    }
 
-        if (selectedAddon.dependencies) {
-            for (const dep of selectedAddon.dependencies) {
-                await resolve(dep.id, dep.name)
+    const buildTree = (rootId: string, flatList: any[]): any => {
+        const visited = new Set()
+        const resolve = (id: string, depth: number): any => {
+            if (depth > 5 || visited.has(id)) return { id, name: "Circle or Hidden" }
+            visited.add(id)
+            const info = flatList.find(m => m.id === id)
+            if (!info) return { id, name: id }
+            return {
+                id: info.id,
+                name: info.name,
+                version: info.version,
+                dependencies: (info.dependencies || []).map((d: any) => resolve(d.id, depth + 1))
             }
         }
-
-        saveCollectionToBackend(Array.from(newModsMap.values()))
-        setLoading(false)
-        alert("모음집에 추가되었습니다 (의존성 포함).")
+        return resolve(rootId, 0)
     }
+
+    const handleViewTree = async (modId: string) => {
+        setTreeLoading(true)
+        try {
+            const res = await apiFetch("/api/workshop/resolve", {
+                method: "POST",
+                body: JSON.stringify({ ids: [modId] })
+            })
+            if (res.ok) {
+                const flatList = await res.json()
+                const tree = buildTree(modId, flatList)
+                setTreeTarget(tree)
+            }
+        } catch (e) { toast.error("트리를 생성할 수 없습니다.") }
+        setTreeLoading(false)
+    }
+
 
     const removeFromCollection = (modId: string) => {
         const newCollection = collectionMods.filter(m => m.modId !== modId)
@@ -489,17 +508,15 @@ export default function ModsPage() {
     const removeEnabledMod = async (modId: string) => {
         if (!confirm("서버 설정에서 이 모드를 제거하시겠습니까? (자동 저장됨)")) return
         try {
-            const configRes = await fetch("http://localhost:3000/api/config", { credentials: "include" })
+            const configRes = await apiFetch("/api/config")
             if (!configRes.ok) return
             const config = await configRes.json()
 
             if (config.game && config.game.mods) {
                 config.game.mods = config.game.mods.filter((m: any) => (m.modId || m.id) !== modId)
 
-                await fetch("http://localhost:3000/api/config", {
+                await apiFetch("/api/config", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    credentials: "include",
                     body: JSON.stringify(config)
                 })
                 fetchConfig()
@@ -513,9 +530,8 @@ export default function ModsPage() {
     const deleteInstalledMod = async (modId: string) => {
         if (!confirm("디스크에서 모드 파일을 영구 삭제하시겠습니까?")) return
         try {
-            const res = await fetch(`http://localhost:3000/api/mods/${modId}`, {
+            const res = await apiFetch(`/api/mods/${modId}`, {
                 method: "DELETE",
-                credentials: "include"
             })
             if (res.ok) {
                 alert("삭제되었습니다.")
@@ -568,7 +584,17 @@ export default function ModsPage() {
                                         <CardTitle>모드 모음집 (내 리스트)</CardTitle>
                                         <CardDescription>서버에 적용할 준비가 된 모드 목록입니다.</CardDescription>
                                     </div>
-                                    <div className="flex gap-2">
+                                    <div className="flex gap-2 items-center">
+                                        <div className="flex bg-zinc-900 border border-zinc-700 rounded px-2 py-1 items-center gap-2 mr-2">
+                                            <List className="w-3.5 h-3.5 text-zinc-500" />
+                                            <select
+                                                value={filterCategory}
+                                                onChange={e => setFilterCategory(e.target.value)}
+                                                className="bg-transparent border-none text-[10px] outline-none text-zinc-300 min-w-[80px]"
+                                            >
+                                                {uniqueCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                                            </select>
+                                        </div>
                                         <Button variant="outline" size="sm" onClick={syncEnabledToCollection} disabled={syncing}>
                                             <Database className={`w-3 h-3 mr-2 ${syncing ? 'animate-spin' : ''}`} />
                                             {syncing ? "동기화 중..." : "활성 모드 동기화"}
@@ -592,7 +618,8 @@ export default function ModsPage() {
                                             <TableHead>이름</TableHead>
                                             <TableHead>ID</TableHead>
                                             <TableHead>용량</TableHead>
-                                            <TableHead>상태</TableHead>
+                                            <TableHead>의존성</TableHead>
+                                            <TableHead>버전 고정</TableHead>
                                             <TableHead>카테고리</TableHead>
                                             <TableHead>관리</TableHead>
                                         </TableRow>
@@ -620,7 +647,7 @@ export default function ModsPage() {
                                                                 <Button variant="ghost" size="sm" className="h-4 px-1 text-[10px]" onClick={async () => {
                                                                     // Fetch info
                                                                     try {
-                                                                        const res = await fetch(`http://localhost:3000/api/workshop/${mod.modId}`, { credentials: "include" })
+                                                                        const res = await apiFetch(`/api/workshop/${mod.modId}`)
                                                                         if (res.ok) {
                                                                             const info = await res.json()
                                                                             // Update collection item name locally (refresh will also do it)
@@ -648,9 +675,16 @@ export default function ModsPage() {
                                                             ) : (
                                                                 <span className="text-zinc-600 text-xs">-</span>
                                                             )}
-                                                            {mod.dependencies && mod.dependencies.length > 5 && (
-                                                                <span className="text-[10px] text-zinc-500">+{mod.dependencies.length - 5} more</span>
+                                                            <span className="text-[10px] text-zinc-500">+{mod.dependencies.length - 5} more</span>
                                                             )}
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-5 px-1 ml-1 text-blue-400 hover:text-blue-300 hover:bg-blue-900/20"
+                                                                onClick={() => handleViewTree(mod.modId)}
+                                                            >
+                                                                <GitGraph className="w-3 h-3 mr-1" /> 트리 보기
+                                                            </Button>
                                                         </div>
                                                     </TableCell>
                                                     <TableCell>
@@ -671,6 +705,19 @@ export default function ModsPage() {
                                                         </datalist>
                                                     </TableCell>
 
+                                                    <TableCell>
+                                                        <div className="flex items-center gap-2">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={!!mod.version}
+                                                                onChange={() => togglePinVersion(mod.modId, installedInfo?.version || "", !!mod.version)}
+                                                                className="accent-amber-500"
+                                                            />
+                                                            <span className="text-xs font-mono text-zinc-500">
+                                                                {mod.version || (installedInfo?.version ? `(${installedInfo.version})` : "-")}
+                                                            </span>
+                                                        </div>
+                                                    </TableCell>
                                                     <TableCell>
                                                         <div className="flex gap-2">
                                                             {isInstalled ? <Badge variant="secondary" className="bg-green-500/20 text-green-400">설치됨</Badge> : <Badge variant="secondary" className="bg-zinc-700">미설치</Badge>}
@@ -854,7 +901,41 @@ export default function ModsPage() {
                     </TabsContent>
 
                 </Tabs>
-            </div >
-        </div >
+            </div>
+
+            {/* Tree Modal */}
+            {treeTarget && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <Card className="w-full max-w-2xl bg-zinc-900 border-zinc-700 shadow-2xl overflow-hidden">
+                        <CardHeader className="border-b border-zinc-800 flex flex-row items-center justify-between">
+                            <div>
+                                <CardTitle className="text-lg flex items-center gap-2">
+                                    <GitGraph className="w-5 h-5 text-blue-400" /> 의존성 트리 탐색기
+                                </CardTitle>
+                                <CardDescription>{treeTarget.name}</CardDescription>
+                            </div>
+                            <Button variant="ghost" size="icon" onClick={() => setTreeTarget(null)}>
+                                <Plus className="w-5 h-5 rotate-45" />
+                            </Button>
+                        </CardHeader>
+                        <CardContent className="p-6">
+                            <DependencyTree root={treeTarget} />
+                            <div className="mt-6 flex justify-end gap-3">
+                                <Button variant="outline" size="sm" onClick={() => setTreeTarget(null)}>닫기</Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
+
+            {treeLoading && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
+                    <div className="bg-zinc-800 p-4 rounded-xl border border-zinc-700 flex items-center gap-3 shadow-xl">
+                        <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+                        <span className="text-sm font-medium">의존성 분석 중...</span>
+                    </div>
+                </div>
+            )}
+        </div>
     )
 }

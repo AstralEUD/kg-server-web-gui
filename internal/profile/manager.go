@@ -5,22 +5,24 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 // Profile represents a server configuration profile
 type Profile struct {
-	ID              string `json:"id"`
-	Name            string `json:"name"`
-	ServerExePath   string `json:"serverExePath"`
-	ConfigPath      string `json:"configPath"`
-	AddonsPath      string `json:"addonsPath"`
-	SteamCMDPath    string `json:"steamcmdPath"`
-	ProfilePath     string `json:"profilePath"` // -profile argument
-	SavesPath       string `json:"savesPath"`
-	IsActive        bool   `json:"isActive"`
-	UseExperimental bool   `json:"useExperimental"`
-	UseUPnP         bool   `json:"useUPnP"`
-	KeepUpToDate    bool   `json:"keepUpToDate"`
+	ID              string    `json:"id"`
+	Name            string    `json:"name"`
+	ServerExePath   string    `json:"serverExePath"`
+	ConfigPath      string    `json:"configPath"`
+	AddonsPath      string    `json:"addonsPath"`
+	SteamCMDPath    string    `json:"steamcmdPath"`
+	ProfilePath     string    `json:"profilePath"` // -profile argument
+	SavesPath       string    `json:"savesPath"`
+	IsActive        bool      `json:"isActive"`
+	UseExperimental bool      `json:"useExperimental"`
+	UseUPnP         bool      `json:"useUPnP"`
+	KeepUpToDate    bool      `json:"keepUpToDate"`
+	CreatedAt       time.Time `json:"createdAt"`
 }
 
 type ProfileManager struct {
@@ -63,9 +65,13 @@ func (pm *ProfileManager) Load() error {
 }
 
 func (pm *ProfileManager) Save() error {
-	pm.mu.RLock()
-	defer pm.mu.RUnlock()
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	return pm.saveLocked()
+}
 
+// saveLocked saves without acquiring lock - caller must hold lock
+func (pm *ProfileManager) saveLocked() error {
 	var profiles []*Profile
 	for _, p := range pm.profiles {
 		profiles = append(profiles, p)
@@ -84,8 +90,12 @@ func (pm *ProfileManager) Create(p *Profile) error {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
+	// Fix #19: Set CreatedAt if not already set
+	if p.CreatedAt.IsZero() {
+		p.CreatedAt = time.Now()
+	}
 	pm.profiles[p.ID] = p
-	return pm.Save()
+	return pm.saveLocked()
 }
 
 func (pm *ProfileManager) Get(id string) *Profile {
@@ -110,7 +120,7 @@ func (pm *ProfileManager) Delete(id string) error {
 	defer pm.mu.Unlock()
 
 	delete(pm.profiles, id)
-	return pm.Save()
+	return pm.saveLocked()
 }
 
 func (pm *ProfileManager) SetActive(id string) error {
@@ -120,7 +130,7 @@ func (pm *ProfileManager) SetActive(id string) error {
 	for pid := range pm.profiles {
 		pm.profiles[pid].IsActive = (pid == id)
 	}
-	return pm.Save()
+	return pm.saveLocked()
 }
 
 func (pm *ProfileManager) GetActive() *Profile {

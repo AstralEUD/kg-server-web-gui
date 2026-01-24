@@ -5,7 +5,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { cn } from "@/lib/utils"
 import {
     LayoutDashboard, Settings, Package, Map, Sliders,
-    HardDrive, Layers, LogOut, User, ChevronDown, Cog, Server as ServerIcon, Plus
+    HardDrive, Layers, LogOut, User, ChevronDown, Cog, Server as ServerIcon, Plus, Zap,
+    Users, Clock, BarChart3
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import {
@@ -16,13 +17,18 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
+import { apiFetch } from "@/lib/api"
 
 const navItems = [
     { href: "/", label: "대시보드", icon: LayoutDashboard },
     { href: "/config", label: "서버 설정", icon: Settings },
     { href: "/mods", label: "모드 관리", icon: Package },
     { href: "/scenarios", label: "시나리오", icon: Map },
+    { href: "/maps", label: "빠른 맵 변경", icon: Zap },
     { href: "/management", label: "서버 관리", icon: Sliders },
+    { href: "/management/players", label: "플레이어 관리", icon: Users },
+    { href: "/management/jobs", label: "스케줄러", icon: Clock },
+    { href: "/stats", label: "통계 & 리포트", icon: BarChart3 },
     { href: "/saves", label: "세이브", icon: HardDrive },
     { href: "/presets", label: "서버 프로필", icon: Layers },
     { href: "/settings", label: "환경 설정", icon: Cog },
@@ -59,12 +65,12 @@ export function Sidebar() {
 
     const fetchServers = async () => {
         try {
-            const res = await fetch("http://localhost:3000/api/servers", { credentials: "include" })
+            const res = await apiFetch("/api/servers")
             if (res.ok) {
                 const data = await res.json()
                 setServers(data || [])
             }
-        } catch (e) { }
+        } catch (e) { console.error('Servers fetch error:', e) }
     }
 
     const handleServerSwitch = (id: string) => {
@@ -75,13 +81,10 @@ export function Sidebar() {
 
     const handleLogout = async () => {
         try {
-            await fetch("http://localhost:3000/api/auth/logout", {
-                method: "POST",
-                credentials: "include",
-            })
-        } catch (e) { }
+            await apiFetch("/api/auth/logout", { method: "POST" })
+        } catch (e) { console.error('Logout error:', e) }
 
-        localStorage.removeItem("auth_token")
+        // Fix #9: Don't remove auth_token from localStorage (rely on httpOnly cookie)
         localStorage.removeItem("username")
         localStorage.removeItem("role")
         router.push("/login")

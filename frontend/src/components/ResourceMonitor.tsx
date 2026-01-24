@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { Activity, Cpu, CircuitBoard, Wifi, Users } from 'lucide-react';
+import { apiFetch } from "@/lib/api"
 
 interface ResourceMonitorProps {
     serverId?: string
@@ -14,8 +15,8 @@ export default function ResourceMonitor({ serverId = "default" }: ResourceMonito
         try {
             // Parallel fetch for resources and metrics
             const [resResources, resMetrics] = await Promise.all([
-                fetch(`http://localhost:3000/api/status/resources?id=${serverId}`, { credentials: "include" }),
-                fetch(`http://localhost:3000/api/servers/${serverId}/metrics`, { credentials: "include" })
+                apiFetch(`/api/status/resources?id=${serverId}`),
+                apiFetch(`/api/servers/${serverId}/metrics`)
             ]);
 
             let fps = 0;

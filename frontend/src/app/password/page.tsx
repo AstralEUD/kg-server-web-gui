@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Lock, Loader2, AlertCircle, CheckCircle } from "lucide-react"
 
+import { apiFetch } from "@/lib/api"
+
 export default function PasswordPage() {
     const router = useRouter()
     const [oldPassword, setOldPassword] = useState("")
@@ -35,10 +37,8 @@ export default function PasswordPage() {
         setLoading(true)
 
         try {
-            const res = await fetch("http://localhost:3000/api/auth/password", {
+            const res = await apiFetch("/api/auth/password", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
                 body: JSON.stringify({ oldPassword, newPassword }),
             })
 

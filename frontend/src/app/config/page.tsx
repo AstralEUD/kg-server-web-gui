@@ -8,7 +8,15 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Upload, Save, Settings, Globe, Gamepad2, Cpu, Radio, Database, Loader2, Download, RefreshCw } from "lucide-react"
+import { Upload, Save, Settings, Globe, Gamepad2, Cpu, Radio, Database, Loader2, Download, RefreshCw, CheckCircle2 } from "lucide-react"
+import { toast } from "sonner"
+import { apiFetch } from "@/lib/api"
+
+// Fix #22: Safe parseInt that returns previous value on NaN
+const safeParseInt = (value: string, fallback: number): number => {
+    const parsed = parseInt(value)
+    return isNaN(parsed) ? fallback : parsed
+}
 
 interface ServerConfig {
     bindAddress?: string
@@ -126,7 +134,7 @@ export default function ConfigPage() {
     const fetchConfig = async () => {
         setLoading(true)
         try {
-            const res = await fetch("http://localhost:3000/api/config", { credentials: "include" })
+            const res = await apiFetch("/api/config")
             if (res.ok) {
                 const data = await res.json()
                 // Ensure nested objects exist to avoid crashes
@@ -145,7 +153,7 @@ export default function ConfigPage() {
 
     const fetchRawConfig = async () => {
         try {
-            const res = await fetch("http://localhost:3000/api/config/raw", { credentials: "include" })
+            const res = await apiFetch("/api/config/raw")
             if (res.ok) {
                 const data = await res.json()
                 setRawConfig(data.content)
@@ -158,32 +166,41 @@ export default function ConfigPage() {
     const saveRawConfig = async () => {
         setSaving(true)
         try {
-            // Validate JSON
-            try {
-                JSON.parse(rawConfig)
-            } catch (e) {
-                alert("유효하지 않은 JSON입니다.")
-                setSaving(false)
-                return
-            }
-
-            const res = await fetch("http://localhost:3000/api/config/raw", {
+            const res = await apiFetch("/api/config/raw", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
                 body: JSON.stringify({ content: rawConfig }),
             })
             if (res.ok) {
-                alert("Raw 설정이 저장되었습니다.")
-                fetchConfig() // Refresh parsed config
+                toast.success("Raw 설정이 저장되었습니다.")
+                fetchConfig()
             } else {
-                alert("저장 실패")
+                toast.error("저장에 실패했습니다.")
             }
         } catch (e) {
-            console.error("설정 저장 실패", e)
-            alert("설정 저장 실패")
+            toast.error("설정 저장 오류")
         }
         setSaving(false)
+    }
+
+    const validateRawConfig = async () => {
+        try {
+            const res = await apiFetch("/api/settings/validate", {
+                method: "POST",
+                body: JSON.stringify({ content: rawConfig })
+            })
+            const data = await res.json()
+            if (data.valid) {
+                if (data.warning) {
+                    toast.warning(`검증 완료 (주의): ${data.warning}`)
+                } else {
+                    toast.success("유효한 구성 파일입니다.")
+                }
+            } else {
+                toast.error(`유효하지 않은 구성: ${data.error}`)
+            }
+        } catch (e) {
+            toast.error("검증 중 오류 발생")
+        }
     }
 
     const importConfig = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -227,16 +244,13 @@ export default function ConfigPage() {
         setSaving(true)
         try {
             const updatedConfig = { ...config, game: { ...config.game, admins: adminsText.split("\n").filter(Boolean) } }
-            await fetch("http://localhost:3000/api/config", {
+            await apiFetch("/api/config", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
                 body: JSON.stringify(updatedConfig),
             })
-            alert("설정이 저장되었습니다.")
+            toast.success("설정이 저장되었습니다.")
         } catch (e) {
-            console.error("설정 저장 실패", e)
-            alert("설정 저장 실패")
+            toast.error("설정 저장 실패")
         }
         setSaving(false)
     }
@@ -540,6 +554,11 @@ export default function ConfigPage() {
                                 <CardDescription>
                                     server.json 파일을 직접 편집합니다. 문법 오류 시 서버가 시작되지 않을 수 있습니다.
                                 </CardDescription>
+                                <div className="flex justify-end mt-2">
+                                    <Button size="sm" variant="outline" onClick={validateRawConfig} className="gap-2 border-amber-500/50 text-amber-500 hover:bg-amber-500/10">
+                                        <CheckCircle2 className="w-4 h-4" /> 구성 검증 (Schema Check)
+                                    </Button>
+                                </div>
                             </CardHeader>
                             <CardContent>
                                 <textarea

@@ -57,6 +57,10 @@ func NewInstanceManager(
 	return im
 }
 
+func (im *InstanceManager) GetDataPath() string {
+	return im.dataPath
+}
+
 func (im *InstanceManager) Save() error {
 	im.mu.RLock()
 	defer im.mu.RUnlock()
@@ -99,8 +103,25 @@ func (im *InstanceManager) List() []*ServerInstance {
 
 func (im *InstanceManager) Get(id string) *ServerInstance {
 	im.mu.RLock()
-	defer im.mu.RUnlock()
-	return im.instances[id]
+	inst, exists := im.instances[id]
+	if !exists {
+		im.mu.RUnlock()
+		return nil
+	}
+	im.mu.RUnlock()
+
+	// Update status from monitor
+	if monitor, ok := im.monitors[id]; ok {
+		running, pid, _ := monitor.IsRunning()
+		if running {
+			inst.Status = "running"
+			inst.PID = pid
+		} else {
+			inst.Status = "stopped"
+			inst.PID = 0
+		}
+	}
+	return inst
 }
 
 // GetMonitor returns the process monitor for the given instance ID
@@ -178,10 +199,26 @@ func (im *InstanceManager) Load() error {
 		im.instances[inst.ID] = inst
 		im.monitors[inst.ID] = agent.NewProcessMonitor("ArmaReforgerServer.exe")
 	}
+
+	// Fix #23: Ensure default instance always exists
+	if _, exists := im.instances["default"]; !exists {
+		im.instances["default"] = &ServerInstance{
+			ID:        "default",
+			Name:      "기본 서버",
+			Status:    "stopped",
+			CreatedAt: time.Now(),
+			Settings:  make(map[string]string),
+		}
+		im.monitors["default"] = agent.NewProcessMonitor("ArmaReforgerServer.exe")
+	}
+
 	return nil
 }
 
 func (im *InstanceManager) Start(id string, args []string) error {
+	// Resolve full arguments based on id and user input
+	fullArgs := im.ResolveServerArgs(id, args)
+
 	im.mu.Lock()
 	inst, exists := im.instances[id]
 	if !exists {
@@ -214,10 +251,10 @@ func (im *InstanceManager) Start(id string, args []string) error {
 
 	// Register with Watchdog before starting
 	if im.watchdog != nil {
-		im.watchdog.RegisterInstance(id, args, monitor)
+		im.watchdog.RegisterInstance(id, serverExe, fullArgs, monitor)
 	}
 
-	if err := monitor.Start(serverExe, args); err != nil {
+	if err := monitor.Start(serverExe, fullArgs); err != nil {
 		logs.GlobalLogs.Error(fmt.Sprintf("[%s] 서버 시작 실패: %v", inst.Name, err))
 		if im.discord != nil {
 			im.discord.SendMessage("❌ Start Failed", fmt.Sprintf("Failed to start server %s: %v", inst.Name, err), agent.ColorRed)
@@ -235,6 +272,76 @@ func (im *InstanceManager) Start(id string, args []string) error {
 	}
 
 	return nil
+}
+
+// ResolveServerArgs injects mandatory arguments like -config, -profile, -addonDownloadDir if missing
+func (im *InstanceManager) ResolveServerArgs(id string, userArgs []string) []string {
+	args := append([]string{}, userArgs...) // Copy
+
+	hasConfig := false
+	hasProfile := false
+	hasAddons := false
+	hasHeadless := false
+
+	for _, arg := range args {
+		switch arg {
+		case "-config":
+			hasConfig = true
+		case "-profile":
+			hasProfile = true
+		case "-addonDownloadDir":
+			hasAddons = true
+		case "-server":
+			hasHeadless = true
+		}
+	}
+
+	if !hasHeadless {
+		args = append(args, "-server")
+	}
+
+	workDir, _ := os.Getwd()
+
+	// 1. Config Path
+	if !hasConfig {
+		configPath := "server.json"
+		if id != "default" {
+			im.mu.RLock()
+			if inst, ok := im.instances[id]; ok && inst.ConfigPath != "" {
+				configPath = inst.ConfigPath
+			}
+			im.mu.RUnlock()
+		}
+		absConfig, _ := filepath.Abs(configPath)
+		args = append(args, "-config", absConfig)
+	}
+
+	// 2. Profile Path
+	if !hasProfile {
+		profileRoot := filepath.Join(workDir, "profile")
+		profilePath := profileRoot
+		if id != "default" {
+			profilePath = filepath.Join(profileRoot, id)
+		}
+		absProfile, _ := filepath.Abs(profilePath)
+		os.MkdirAll(absProfile, 0755)
+		args = append(args, "-profile", absProfile)
+	}
+
+	// 3. Addons Path
+	if !hasAddons {
+		addonPath := filepath.Join(workDir, "addons")
+		if im.settingsMgr != nil {
+			s := im.settingsMgr.Get()
+			if s.AddonsPath != "" {
+				addonPath = s.AddonsPath
+			}
+		}
+		absAddons, _ := filepath.Abs(addonPath)
+		args = append(args, "-addonDownloadDir", absAddons)
+	}
+
+	return args
 }
 
 func (im *InstanceManager) Stop(id string) error {

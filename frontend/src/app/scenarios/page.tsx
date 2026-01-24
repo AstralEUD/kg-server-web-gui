@@ -9,9 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Map, Play, RefreshCw, Copy, Check, Loader2, Info, Plus, Trash2, GripVertical, Save } from "lucide-react"
 
+import { apiFetch } from "@/lib/api"
+
 interface Scenario {
     scenarioId: string
     name: string
+    imageUrl?: string
     wbParam?: string // For missionHeader.mission value
 }
 
@@ -36,7 +39,7 @@ export default function ScenariosPage() {
     const fetchScenarios = async () => {
         setLoading(true)
         try {
-            const res = await fetch("http://localhost:3000/api/scenarios", { credentials: "include" })
+            const res = await apiFetch("/api/scenarios")
             if (res.ok) {
                 const data = await res.json()
                 setScenarios(data || [])
@@ -49,7 +52,7 @@ export default function ScenariosPage() {
 
     const fetchConfig = async () => {
         try {
-            const res = await fetch("http://localhost:3000/api/config", { credentials: "include" })
+            const res = await apiFetch("/api/config")
             if (res.ok) {
                 const data = await res.json()
                 if (data.missionHeader) {
@@ -76,7 +79,7 @@ export default function ScenariosPage() {
             }
 
             // First fetch current config to preserve other fields
-            const configRes = await fetch("http://localhost:3000/api/config", { credentials: "include" })
+            const configRes = await apiFetch("/api/config")
             if (!configRes.ok) throw new Error("Config load failed")
             const config = await configRes.json()
 
@@ -84,10 +87,8 @@ export default function ScenariosPage() {
             config.missionHeader = parsedHeader
 
             // Save back
-            await fetch("http://localhost:3000/api/config", {
+            await apiFetch("/api/config", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
                 body: JSON.stringify(config)
             })
 
@@ -111,7 +112,7 @@ export default function ScenariosPage() {
         if (!confirm("이 시나리오를 서버 기본 시나리오로 설정하시겠습니까?")) return
         try {
             // Fetch current config
-            const configRes = await fetch("http://localhost:3000/api/config", { credentials: "include" })
+            const configRes = await apiFetch("/api/config")
             if (!configRes.ok) throw new Error("Config load failed")
             const config = await configRes.json()
 
@@ -119,10 +120,8 @@ export default function ScenariosPage() {
             config.game.scenarioId = id
 
             // Save back
-            await fetch("http://localhost:3000/api/config", {
+            await apiFetch("/api/config", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
                 body: JSON.stringify(config)
             })
             alert("서버 시나리오가 변경되었습니다.")
@@ -174,40 +173,48 @@ export default function ScenariosPage() {
                                         const isActive = Boolean(missionHeader.mission && missionHeader.mission.includes(s.scenarioId))
 
                                         return (
-                                            <div key={s.scenarioId} className={`flex flex-col gap-3 p-3 rounded-lg border transition-all ${isActive ? "bg-emerald-900/20 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)]" : "bg-zinc-900 border-zinc-700 hover:border-zinc-600"}`}>
-                                                <div>
-                                                    <div className="flex items-center justify-between">
-                                                        <div className={`font-medium ${isActive ? "text-emerald-400" : ""}`}>{s.name}</div>
-                                                        {isActive && <Badge variant="outline" className="text-emerald-400 border-emerald-500/50 bg-emerald-500/10 text-[10px] h-5">Active</Badge>}
+                                            <div key={s.scenarioId} className={`flex flex-col gap-0 rounded-xl border overflow-hidden transition-all ${isActive ? "bg-emerald-900/10 border-emerald-500/50 shadow-[0_0_25px_rgba(16,185,129,0.15)]" : "bg-zinc-900 border-zinc-700 hover:border-zinc-600"}`}>
+                                                {s.imageUrl && (
+                                                    <div className="relative h-32 w-full overflow-hidden">
+                                                        <img src={s.imageUrl} alt={s.name} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity" />
+                                                        <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 to-transparent" />
                                                     </div>
-                                                    <div className="text-xs text-zinc-500 font-mono mt-1 break-all">{s.scenarioId}</div>
+                                                )}
+                                                <div className="p-4 space-y-3">
+                                                    <div>
+                                                        <div className="flex items-center justify-between">
+                                                            <div className={`font-medium ${isActive ? "text-emerald-400" : ""}`}>{s.name}</div>
+                                                            {isActive && <Badge variant="outline" className="text-emerald-400 border-emerald-500/50 bg-emerald-500/10 text-[10px] h-5">Active</Badge>}
+                                                        </div>
+                                                        <div className="text-xs text-zinc-500 font-mono mt-1 break-all">{s.scenarioId}</div>
+                                                    </div>
+                                                    <div className="flex gap-2 justify-end">
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => copyScenarioId(s.scenarioId)}
+                                                            className="gap-2"
+                                                        >
+                                                            {copied === s.scenarioId ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                                                            {copied === s.scenarioId ? "복사됨" : "ID 복사"}
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant={isActive ? "default" : "secondary"}
+                                                            className={isActive ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+                                                            onClick={() => applyScenario(s.scenarioId)}
+                                                            disabled={isActive}
+                                                        >
+                                                            {isActive ? <Check className="w-3 h-3 mr-1" /> : <Play className="w-3 h-3 mr-1" />}
+                                                            {isActive ? "적용됨" : "서버에 적용"}
+                                                        </Button>
+                                                    </div>
                                                 </div>
-                                                <div className="flex gap-2 justify-end">
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => copyScenarioId(s.scenarioId)}
-                                                        className="gap-2"
-                                                    >
-                                                        {copied === s.scenarioId ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                                                        {copied === s.scenarioId ? "복사됨" : "ID 복사"}
-                                                    </Button>
-                                                    <Button
-                                                        size="sm"
-                                                        variant={isActive ? "default" : "secondary"}
-                                                        className={isActive ? "bg-emerald-600 hover:bg-emerald-700" : ""}
-                                                        onClick={() => applyScenario(s.scenarioId)}
-                                                        disabled={isActive}
-                                                    >
-                                                        {isActive ? <Check className="w-3 h-3 mr-1" /> : <Play className="w-3 h-3 mr-1" />}
-                                                        {isActive ? "적용됨" : "서버에 적용"}
-                                                    </Button>
-                                                </div>
+                                                )
+                                    })}
                                             </div>
                                         )
-                                    })}
-                                </div>
-                            )}
+                                    }
                         </CardContent>
                     </Card>
 

@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Layers, Plus, Trash2, Edit2, Save, Loader2, Check, Upload, Play } from "lucide-react"
 
+import { apiFetch } from "@/lib/api"
+
 interface Preset {
     id: string
     name: string
@@ -37,7 +39,7 @@ export default function ProfilesPage() {
     const fetchPresets = async () => {
         setLoading(true)
         try {
-            const res = await fetch("http://localhost:3000/api/presets", { credentials: "include" })
+            const res = await apiFetch("/api/presets")
             if (res.ok) {
                 const data = await res.json()
                 setPresets(data || [])
@@ -53,8 +55,8 @@ export default function ProfilesPage() {
         setProcessing(true)
         try {
             // Fetch current state
-            const configRes = await fetch("http://localhost:3000/api/config", { credentials: "include" })
-            const collectionsRes = await fetch("http://localhost:3000/api/collections", { credentials: "include" })
+            const configRes = await apiFetch("/api/config")
+            const collectionsRes = await apiFetch("/api/collections")
 
             if (!configRes.ok || !collectionsRes.ok) throw new Error("State fetch failed")
 
@@ -62,10 +64,8 @@ export default function ProfilesPage() {
             const collections = await collectionsRes.json()
             const currentCollection = collections.length > 0 ? collections[0].items : []
 
-            const res = await fetch("http://localhost:3000/api/presets", {
+            const res = await apiFetch("/api/presets", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
                 body: JSON.stringify({
                     name: newPresetName,
                     description: newPresetDesc,
@@ -89,9 +89,8 @@ export default function ProfilesPage() {
     const deletePreset = async (id: string) => {
         if (!confirm("정말 이 프로필을 삭제하시겠습니까?")) return
         try {
-            await fetch(`http://localhost:3000/api/presets/${id}`, {
+            await apiFetch(`/api/presets/${id}`, {
                 method: "DELETE",
-                credentials: "include"
             })
             fetchPresets()
         } catch (e) {
@@ -102,9 +101,8 @@ export default function ProfilesPage() {
     const applyPreset = async (preset: Preset) => {
         if (!confirm(`'${preset.name}' 프로필을 적용하시겠습니까?\n현재 서버 설정과 모음집이 덮어씌워집니다.`)) return
         try {
-            const res = await fetch(`http://localhost:3000/api/presets/${preset.id}/apply`, {
+            const res = await apiFetch(`/api/presets/${preset.id}/apply`, {
                 method: "POST",
-                credentials: "include"
             })
             if (res.ok) {
                 alert("프로필이 적용되었습니다.")

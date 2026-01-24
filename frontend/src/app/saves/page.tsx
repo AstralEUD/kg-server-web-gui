@@ -3,9 +3,9 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { HardDrive, Archive, RotateCcw, Trash2, RefreshCw, Clock, Download, Upload, Loader2, FolderOpen } from "lucide-react"
+import { HardDrive, Archive, RotateCcw, Trash2, RefreshCw, Clock, Download, Loader2 } from "lucide-react"
+import { apiFetch } from "@/lib/api"
 
 interface SaveFile {
     name: string
@@ -59,25 +59,25 @@ export default function SavesPage() {
     const fetchSaves = async () => {
         setLoading(true)
         try {
-            const res = await fetch("http://localhost:3000/api/saves", { credentials: "include" })
+            const res = await apiFetch("/api/saves")
             if (res.ok) {
                 const data = await res.json()
                 // Ensure data is an array
                 setSaves(Array.isArray(data) ? data : [])
             }
-        } catch (e) { console.error(e) }
+        } catch (e) { console.error('Saves fetch error:', e) }
         setLoading(false)
     }
 
     const fetchBackups = async () => {
         try {
-            const res = await fetch("http://localhost:3000/api/saves/backups", { credentials: "include" })
+            const res = await apiFetch("/api/saves/backups")
             if (res.ok) {
                 const data = await res.json()
                 // Ensure data is an array
                 setBackups(Array.isArray(data) ? data : [])
             }
-        } catch (e) { console.error(e) }
+        } catch (e) { console.error('Backups fetch error:', e) }
     }
 
     // Client-side guard to prevent hydration mismatch
@@ -92,42 +92,37 @@ export default function SavesPage() {
     const createBackup = async (saveName: string) => {
         setProcessing(saveName)
         try {
-            await fetch("http://localhost:3000/api/saves/backup", {
+            await apiFetch("/api/saves/backup", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
                 body: JSON.stringify({ saveName })
             })
             fetchBackups()
-        } catch (e) { console.error(e) }
+        } catch (e) { console.error('Backup create error:', e) }
         setProcessing(null)
     }
 
     const restoreBackup = async (backupName: string) => {
-        if (!confirm("백업을 복원하시겠습니까? 현재 세이브 파일이 덮어씌워질 수 있습니다.")) return
+        if (!confirm("백업을 복원하시겠습니까? 현재 세이브 파일이 덮어씁워질 수 있습니다.")) return
         setProcessing(backupName)
         try {
-            await fetch("http://localhost:3000/api/saves/restore", {
+            await apiFetch("/api/saves/restore", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
                 body: JSON.stringify({ backupName })
             })
             fetchSaves()
-        } catch (e) { console.error(e) }
+        } catch (e) { console.error('Backup restore error:', e) }
         setProcessing(null)
     }
 
     const deleteSave = async (name: string, isBackup: boolean) => {
         if (!confirm(`정말 ${name} 파일을 삭제하시겠습니까?`)) return
         try {
-            await fetch(`http://localhost:3000/api/saves/${name}`, {
-                method: "DELETE",
-                credentials: "include"
+            await apiFetch(`/api/saves/${name}`, {
+                method: "DELETE"
             })
             if (isBackup) fetchBackups()
             else fetchSaves()
-        } catch (e) { console.error(e) }
+        } catch (e) { console.error('Delete error:', e) }
     }
 
     const FileList = ({ files, isBackup }: { files: SaveFile[], isBackup: boolean }) => (

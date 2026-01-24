@@ -8,12 +8,13 @@ import (
 
 // RestartScheduler handles automatic server restarts
 type RestartScheduler struct {
-	mu          sync.Mutex
-	enabled     bool
-	restartTime string // Format: "HH:MM" (24h)
-	ticker      *time.Ticker
-	stopChan    chan struct{}
-	onRestart   func() error
+	mu            sync.Mutex
+	enabled       bool
+	restartTime   string // Format: "HH:MM" (24h)
+	lastTriggered string // Prevent multiple triggers in same minute
+	ticker        *time.Ticker
+	stopChan      chan struct{}
+	onRestart     func() error
 }
 
 func NewRestartScheduler(onRestart func() error) *RestartScheduler {
@@ -27,6 +28,7 @@ func (s *RestartScheduler) SetSchedule(timeStr string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.restartTime = timeStr
+	s.lastTriggered = "" // Reset when schedule changes
 }
 
 func (s *RestartScheduler) Enable() {
@@ -83,7 +85,9 @@ func (s *RestartScheduler) checkAndRestart() {
 	now := time.Now()
 	currentTime := now.Format("15:04")
 
-	if currentTime == s.restartTime {
+	// Fix #16: Prevent multiple triggers in same minute
+	if currentTime == s.restartTime && s.lastTriggered != currentTime {
+		s.lastTriggered = currentTime
 		log.Printf("Scheduled restart triggered at %s", s.restartTime)
 		if err := s.onRestart(); err != nil {
 			log.Printf("Scheduled restart failed: %v", err)

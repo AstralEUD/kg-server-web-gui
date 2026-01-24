@@ -25,6 +25,14 @@ type AppSettings struct {
 	// Monitoring & Integration
 	DiscordWebhookURL string `json:"discordWebhookUrl"`
 	EnableWatchdog    bool   `json:"enableWatchdog"`
+
+	// Discord Bot (for chat commands)
+	DiscordBotToken  string `json:"discordBotToken"`  // Bot token from Discord Developer Portal
+	DiscordChannelID string `json:"discordChannelId"` // Channel ID to listen for commands
+	EnableDiscordBot bool   `json:"enableDiscordBot"` // Enable Discord bot
+
+	// RCON Chat Monitor
+	EnableRconMonitor bool `json:"enableRconMonitor"` // Enable in-game chat command monitoring
 }
 
 // SettingsManager handles saving/loading settings
@@ -129,8 +137,8 @@ func (sm *SettingsManager) Load() error {
 }
 
 func (sm *SettingsManager) Save() error {
-	sm.mu.RLock()
-	defer sm.mu.RUnlock()
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
 
 	data, err := json.MarshalIndent(sm.settings, "", "  ")
 	if err != nil {

@@ -65,9 +65,13 @@ func (sm *SessionManager) Load() error {
 }
 
 func (sm *SessionManager) Save() error {
-	sm.mu.RLock()
-	defer sm.mu.RUnlock()
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	return sm.saveLocked()
+}
 
+// saveLocked saves without acquiring lock - caller must hold lock
+func (sm *SessionManager) saveLocked() error {
 	var sessions []*Session
 	for _, s := range sm.sessions {
 		sessions = append(sessions, s)
@@ -84,6 +88,8 @@ func (sm *SessionManager) Save() error {
 
 func (sm *SessionManager) Create(user *User) *Session {
 	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
 	token := generateToken()
 	session := &Session{
 		Token:     token,
@@ -94,14 +100,13 @@ func (sm *SessionManager) Create(user *User) *Session {
 		ExpiresAt: time.Now().Add(sm.ttl),
 	}
 	sm.sessions[token] = session
-	sm.mu.Unlock()
-	sm.Save()
+	sm.saveLocked()
 	return session
 }
 
 func (sm *SessionManager) Validate(token string) *Session {
-	sm.mu.RLock()
-	defer sm.mu.RUnlock()
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
 
 	session, exists := sm.sessions[token]
 	if !exists {
@@ -109,7 +114,9 @@ func (sm *SessionManager) Validate(token string) *Session {
 	}
 
 	if time.Now().After(session.ExpiresAt) {
-		go sm.Delete(token)
+		// Fix #25: Delete synchronously within the same lock
+		delete(sm.sessions, token)
+		sm.saveLocked()
 		return nil
 	}
 
@@ -118,9 +125,10 @@ func (sm *SessionManager) Validate(token string) *Session {
 
 func (sm *SessionManager) Delete(token string) {
 	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
 	delete(sm.sessions, token)
-	sm.mu.Unlock()
-	sm.Save()
+	sm.saveLocked()
 }
 
 func (sm *SessionManager) cleanupLoop() {
@@ -144,6 +152,9 @@ func (sm *SessionManager) cleanup() {
 
 func generateToken() string {
 	bytes := make([]byte, 32)
-	rand.Read(bytes)
+	if _, err := rand.Read(bytes); err != nil {
+		// Fallback: should never happen, but use time-based if crypto/rand fails
+		return hex.EncodeToString([]byte(time.Now().Format(time.RFC3339Nano)))
+	}
 	return hex.EncodeToString(bytes)
 }

@@ -11,10 +11,15 @@ import (
 	"github.com/astral/kg-server-web-gui/internal/api/handlers"
 	"github.com/astral/kg-server-web-gui/internal/auth"
 	"github.com/astral/kg-server-web-gui/internal/config"
+	"github.com/astral/kg-server-web-gui/internal/discord"
 	"github.com/astral/kg-server-web-gui/internal/logs"
+	"github.com/astral/kg-server-web-gui/internal/mapchange"
+	"github.com/astral/kg-server-web-gui/internal/metrics"
 	"github.com/astral/kg-server-web-gui/internal/preset"
 	"github.com/astral/kg-server-web-gui/internal/profile"
+	"github.com/astral/kg-server-web-gui/internal/rcon"
 	"github.com/astral/kg-server-web-gui/internal/saves"
+	"github.com/astral/kg-server-web-gui/internal/scheduler"
 	"github.com/astral/kg-server-web-gui/internal/server"
 	"github.com/astral/kg-server-web-gui/internal/settings"
 	"github.com/astral/kg-server-web-gui/internal/steamcmd"
@@ -60,14 +65,14 @@ func SetupRoutes(app *fiber.App) {
 	}
 
 	// Initialize Phase 1 components
-	discord := agent.NewDiscordClient(currSettings.DiscordWebhookURL)
+	discordWebhook := agent.NewDiscordClient(currSettings.DiscordWebhookURL)
 	proc := agent.NewProcessMonitor("ArmaReforgerServer.exe")
 	proc.SetServerPath(currSettings.ServerPath) // Ensure path is set if available
 
-	wd := agent.NewWatchdog(discord)
+	wd := agent.NewWatchdog(discordWebhook, dataPath)
 	wd.SetEnabled(currSettings.EnableWatchdog)
 
-	instanceMgr := server.NewInstanceManager(dataPath, settingsMgr, wd, discord)
+	instanceMgr := server.NewInstanceManager(dataPath, settingsMgr, wd, discordWebhook)
 	cfg := config.NewConfigManager()
 	pm := profile.NewProfileManager(dataPath)
 	sm := saves.NewSaveManager(savesPath, backupsPath)
@@ -75,14 +80,63 @@ func SetupRoutes(app *fiber.App) {
 	presetMgr := preset.NewPresetManager(dataPath)
 	collectionMgr := workshop.NewCollectionManager(dataPath)
 
+	// Initialize Map Change system
+	mappingMgr := mapchange.NewMappingManager(dataPath)
+	mapService := mapchange.NewMapChangeService(instanceMgr, cfg, settingsMgr, discordWebhook, mappingMgr)
+
+	// Initialize Discord Bot (if enabled)
+	var discordBot *discord.Bot
+	if currSettings.EnableDiscordBot && currSettings.DiscordBotToken != "" {
+		var err error
+		discordBot, err = discord.NewBot(currSettings.DiscordBotToken, currSettings.DiscordChannelID, mapService, instanceMgr)
+		if err != nil {
+			logs.GlobalLogs.Warn(fmt.Sprintf("Discord Bot 초기화 실패: %v", err))
+		} else {
+			if err := discordBot.Start(); err != nil {
+				logs.GlobalLogs.Warn(fmt.Sprintf("Discord Bot 시작 실패: %v", err))
+			} else {
+				logs.GlobalLogs.Info("Discord Bot 시작됨")
+			}
+		}
+	}
+
+	// Initialize RCON Chat Monitor (if enabled)
+	var rconMonitor *rcon.ChatMonitor
+	var playerMonitor *rcon.PlayerMonitor
+	if currSettings.EnableRconMonitor {
+		rconMonitor = rcon.NewChatMonitor(instanceMgr, mapService)
+		rconMonitor.Start()
+		logs.GlobalLogs.Info("RCON 채팅 모니터 시작됨")
+
+		playerMonitor = rcon.NewPlayerMonitor(instanceMgr, discordWebhook)
+		playerMonitor.Start()
+		logs.GlobalLogs.Info("Player 모니터 시작됨")
+	}
+
+	// Initialize Scheduler
+	schedulerMgr := scheduler.NewManager(dataPath, instanceMgr, mapService, discordWebhook)
+	schedulerMgr.Start()
+
+	// Initialize Metrics
+	metricsMgr := metrics.NewManager(dataPath, instanceMgr)
+	metricsMgr.Start()
+
+	// Store references for cleanup (in case we need to stop them later)
+	_ = discordBot
+	_ = rconMonitor
+	_ = playerMonitor
+
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(userManager, sessionManager)
 
-	baseHandlers := handlers.NewApiHandlers(instanceMgr, cfg, settingsMgr, wd, discord)
+	baseHandlers := handlers.NewApiHandlers(instanceMgr, cfg, settingsMgr, wd, discordWebhook)
 	profileHandler := handlers.NewProfileHandler(pm)
 	savesHandler := handlers.NewSavesHandler(sm)
 	collectionHandler := handlers.NewCollectionHandler(collectionMgr)
 	modCategoryHandler := handlers.NewModCategoryHandler(dataPath)
+	mapHandler := handlers.NewMapHandler(mapService)
+	schedulerHandler := handlers.NewSchedulerHandler(schedulerMgr)
+	statsHandler := handlers.NewStatsHandler(metricsMgr)
 
 	api := app.Group("/api")
 
@@ -120,6 +174,9 @@ func SetupRoutes(app *fiber.App) {
 		}
 		return c.JSON(fiber.Map{"status": "saved"})
 	})
+	api.Get("/settings/export", baseHandlers.ExportSettings)
+	api.Post("/settings/import", baseHandlers.ImportSettings)
+	api.Post("/settings/validate", baseHandlers.ValidateConfig)
 
 	// Server Instances API (multi-server)
 	api.Get("/servers", func(c *fiber.Ctx) error {
@@ -167,73 +224,6 @@ func SetupRoutes(app *fiber.App) {
 			return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 		}
 
-		// Track arguments we want to force
-		hasConfig := false
-		hasProfile := false
-		hasAddons := false
-		hasHeadless := false
-
-		for _, arg := range req.Args {
-			if arg == "-config" {
-				hasConfig = true
-			}
-			if arg == "-profile" {
-				hasProfile = true
-			}
-			if arg == "-addonDownloadDir" {
-				hasAddons = true
-			}
-			if arg == "-server" {
-				hasHeadless = true
-			}
-		}
-
-		// Force headless mode if not present (it's a server manager after all)
-		if !hasHeadless {
-			req.Args = append(req.Args, "-server")
-		}
-
-		// Inject Config and Profile
-		if id == "default" {
-			if !hasConfig {
-				absConfig, _ := filepath.Abs("server.json")
-				req.Args = append(req.Args, "-config", absConfig)
-			}
-			if !hasProfile {
-				absProfile, _ := filepath.Abs("profile")
-				req.Args = append(req.Args, "-profile", absProfile)
-			}
-		} else {
-			// For specific instances
-			inst := instanceMgr.Get(id)
-			if inst != nil {
-				if !hasConfig && inst.ConfigPath != "" {
-					absConfig, _ := filepath.Abs(inst.ConfigPath)
-					req.Args = append(req.Args, "-config", absConfig)
-				}
-				// Autoset profile to profile/<id> if not set, to keep them isolated
-				if !hasProfile {
-					instProfile := filepath.Join(profilePath, id)
-					absProfile, _ := filepath.Abs(instProfile)
-					os.MkdirAll(absProfile, 0755)
-					req.Args = append(req.Args, "-profile", absProfile)
-				}
-			}
-		}
-
-		// Inject Addons Path (Global)
-		if !hasAddons {
-			s := settingsMgr.Get()
-			if s.AddonsPath != "" {
-				absAddons, _ := filepath.Abs(s.AddonsPath)
-				req.Args = append(req.Args, "-addonDownloadDir", absAddons)
-			} else {
-				// Default to relative 'addons'
-				absAddons, _ := filepath.Abs("addons")
-				req.Args = append(req.Args, "-addonDownloadDir", absAddons)
-			}
-		}
-
 		logs.GlobalLogs.Info(fmt.Sprintf("[%s] Starting with args: %v", id, req.Args))
 
 		if err := instanceMgr.Start(id, req.Args); err != nil {
@@ -255,6 +245,9 @@ func SetupRoutes(app *fiber.App) {
 		}
 		return c.JSON(metrics)
 	})
+	api.Get("/servers/:id/players", baseHandlers.GetPlayers)
+	api.Post("/servers/:id/kick", baseHandlers.KickPlayer)
+	api.Post("/servers/:id/ban", baseHandlers.BanPlayer)
 
 	// Legacy Status & Server Control (for backward compatibility)
 	api.Get("/status", baseHandlers.GetStatus)
@@ -266,42 +259,6 @@ func SetupRoutes(app *fiber.App) {
 		}
 		c.BodyParser(&req)
 		logs.GlobalLogs.Info("서버 시작 요청")
-
-		// Track arguments we want to force
-		hasConfig := false
-		hasProfile := false
-		hasAddons := false
-
-		for _, arg := range req.Args {
-			if arg == "-config" {
-				hasConfig = true
-			}
-			if arg == "-profile" {
-				hasProfile = true
-			}
-			if arg == "-addonDownloadDir" {
-				hasAddons = true
-			}
-		}
-
-		if !hasConfig {
-			absConfig, _ := filepath.Abs("server.json")
-			req.Args = append(req.Args, "-config", absConfig)
-		}
-		if !hasProfile {
-			absProfile, _ := filepath.Abs("profile")
-			req.Args = append(req.Args, "-profile", absProfile)
-		}
-		if !hasAddons {
-			// Get addons path from settings or use default
-			s := settingsMgr.Get()
-			if s.AddonsPath != "" {
-				req.Args = append(req.Args, "-addonDownloadDir", s.AddonsPath)
-			} else {
-				absAddons, _ := filepath.Abs("addons")
-				req.Args = append(req.Args, "-addonDownloadDir", absAddons)
-			}
-		}
 
 		if err := instanceMgr.Start("default", req.Args); err != nil {
 			logs.GlobalLogs.Error("서버 시작 실패: " + err.Error())
@@ -319,8 +276,19 @@ func SetupRoutes(app *fiber.App) {
 	})
 	api.Post("/server/restart", func(c *fiber.Ctx) error {
 		logs.GlobalLogs.Info("서버 재시작 요청")
+
+		// Stop the server first
 		instanceMgr.Stop("default")
-		return c.JSON(fiber.Map{"status": "restarting"})
+
+		// Wait briefly for process to stop
+		time.Sleep(2 * time.Second)
+
+		if err := instanceMgr.Start("default", []string{}); err != nil {
+			logs.GlobalLogs.Error("서버 재시작 실패: " + err.Error())
+			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		return c.JSON(fiber.Map{"status": "restarted"})
 	})
 
 	// Config
@@ -334,8 +302,8 @@ func SetupRoutes(app *fiber.App) {
 	api.Get("/mods", baseHandlers.ListInstalledMods)
 	api.Delete("/mods/:id", baseHandlers.DeleteMod)
 	api.Get("/workshop/search", baseHandlers.SearchWorkshop)
-	api.Get("/workshop/search", baseHandlers.SearchWorkshop)
 	api.Get("/workshop/:id", baseHandlers.GetWorkshopInfo)
+	api.Post("/workshop/resolve", baseHandlers.ResolveDependencies)
 
 	// Collections
 	api.Get("/collections", collectionHandler.ListCollections)
@@ -348,6 +316,26 @@ func SetupRoutes(app *fiber.App) {
 
 	// Scenarios
 	api.Get("/scenarios", baseHandlers.ListScenarios)
+
+	// Maps (quick map change system)
+	api.Get("/maps", mapHandler.ListMappings)
+	api.Post("/maps", mapHandler.AddMapping)
+	api.Delete("/maps/:slot", mapHandler.RemoveMapping)
+	api.Post("/maps/:slot/apply", mapHandler.ApplyMap)
+	api.Post("/maps/apply", mapHandler.ApplyMapByScenario)
+	api.Get("/servers/:id/map", mapHandler.GetCurrentMap)
+
+	// Scheduler
+	api.Get("/jobs", schedulerHandler.ListJobs)
+	api.Post("/jobs", schedulerHandler.AddJob)
+	api.Post("/jobs/:id", schedulerHandler.UpdateJob)
+	api.Delete("/jobs/:id", schedulerHandler.DeleteJob)
+
+	// Stats
+	api.Get("/stats/history", statsHandler.GetHistory)
+	api.Get("/stats/uptime", statsHandler.GetUptime)
+	api.Get("/crashes", baseHandlers.GetCrashes)
+	api.Get("/commands/history", baseHandlers.GetCommandHistory)
 
 	// Profiles
 	api.Get("/profiles", profileHandler.List)
@@ -425,6 +413,12 @@ func SetupRoutes(app *fiber.App) {
 		if p == nil {
 			return c.Status(404).JSON(fiber.Map{"error": "프리셋을 찾을 수 없습니다"})
 		}
+
+		// Fix #17: Check if Config is nil
+		if p.Config == nil {
+			return c.Status(400).JSON(fiber.Map{"error": "프리셋 설정이 비어있습니다"})
+		}
+
 		// Apply preset config - convert map to ServerConfig
 		configPath := filepath.Join(workDir, "server.json")
 
