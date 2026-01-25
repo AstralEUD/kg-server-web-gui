@@ -12,8 +12,18 @@ export interface ServerConfig {
     publicAddress?: string;
     publicPort?: number;
     a2s?: A2SConfig;
+    rcon?: RconConfig;
     game: GameConfig;
     operating?: OperatingConfig;
+}
+
+export interface RconConfig {
+    address?: string;
+    port: number;
+    password: string;
+    permission?: string;
+    blacklist?: string[];
+    whitelist?: string[];
 }
 
 export interface A2SConfig {

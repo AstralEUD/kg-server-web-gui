@@ -48,18 +48,49 @@ export function ConfigNetwork({ config, setConfig, updateGame }: Props) {
                 </CardContent>
             </Card>
 
-            <Card className="bg-zinc-800/50 border-zinc-700">
-                <CardHeader><CardTitle>RCON 설정</CardTitle></CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                        <Label>RCON 비밀번호</Label>
-                        <Input type="password" value={config.game.rconPassword || ""} onChange={e => updateGame("rconPassword", e.target.value)} placeholder="RCON Password" className="bg-zinc-900 border-zinc-700" />
+            <Card className="bg-zinc-800/50 border-zinc-700 md:col-span-2">
+                <CardHeader><CardTitle>RCON (원격 콘솔) 설정</CardTitle></CardHeader>
+                <CardContent>
+                    <div className="grid gap-6 md:grid-cols-2">
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <Label>RCON 주소</Label>
+                                <Input value={config.rcon?.address || "0.0.0.0"} onChange={e => setConfig({ ...config, rcon: { ...config.rcon!, address: e.target.value } })} className="bg-zinc-900 border-zinc-700" />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>RCON 포트</Label>
+                                <Input type="number" value={config.rcon?.port || 19999} onChange={e => setConfig({ ...config, rcon: { ...config.rcon!, port: parseInt(e.target.value) } })} className="bg-zinc-900 border-zinc-700" />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>RCON 비밀번호</Label>
+                                <Input type="password" value={config.rcon?.password || ""} onChange={e => setConfig({ ...config, rcon: { ...config.rcon!, password: e.target.value } })} className="bg-zinc-900 border-zinc-700" />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>권한 (Permission)</Label>
+                                <Input value={config.rcon?.permission || "monitor"} onChange={e => setConfig({ ...config, rcon: { ...config.rcon!, permission: e.target.value } })} placeholder="monitor, admin" className="bg-zinc-900 border-zinc-700" />
+                            </div>
+                        </div>
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <Label>화이트리스트 (Whitelist)</Label>
+                                <p className="text-xs text-zinc-400">허용할 IP를 한 줄에 하나씩 입력하세요.</p>
+                                <textarea 
+                                    className="w-full h-24 bg-zinc-900 border border-zinc-700 rounded-md p-3 font-mono text-sm resize-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500"
+                                    value={config.rcon?.whitelist?.join("\n") || ""}
+                                    onChange={e => setConfig({ ...config, rcon: { ...config.rcon!, whitelist: e.target.value.split("\n").filter(Boolean) } })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>블랙리스트 (Blacklist)</Label>
+                                <p className="text-xs text-zinc-400">차단할 IP를 한 줄에 하나씩 입력하세요.</p>
+                                <textarea 
+                                    className="w-full h-24 bg-zinc-900 border border-zinc-700 rounded-md p-3 font-mono text-sm resize-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500"
+                                    value={config.rcon?.blacklist?.join("\n") || ""}
+                                    onChange={e => setConfig({ ...config, rcon: { ...config.rcon!, blacklist: e.target.value.split("\n").filter(Boolean) } })}
+                                />
+                            </div>
+                        </div>
                     </div>
-                    <div className="space-y-2">
-                        <Label>RCON 포트</Label>
-                        <Input type="number" value={config.game.rconPort} onChange={e => updateGame("rconPort", parseInt(e.target.value))} className="bg-zinc-900 border-zinc-700" />
-                    </div>
-                    <p className="text-xs text-zinc-500">주의: RCON 비밀번호는 관리자 기능(콘솔, 맵 변경 등)에 필수적입니다.</p>
                 </CardContent>
             </Card>
         </div>

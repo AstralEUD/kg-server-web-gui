@@ -69,6 +69,19 @@ export function ConfigOperating({ config, setConfig, updateOperating }: Props) {
                         </div>
                     </div>
                 </div>
+
+                <div className="mt-6 border-t border-zinc-700 pt-6">
+                    <div className="space-y-2">
+                        <Label>Navmesh Streaming 비활성화 목록 (Disable Navmesh Streaming)</Label>
+                        <p className="text-xs text-zinc-400">네비메시 스트리밍을 비활성화할 항목을 한 줄에 하나씩 입력하세요. (대규모 작전 시 AI 동작 개선에 도움될 수 있음)</p>
+                        <textarea
+                            className="w-full h-24 bg-zinc-900 border border-zinc-700 rounded-md p-3 font-mono text-sm resize-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500"
+                            placeholder="항목 입력..."
+                            value={operating.disableNavmeshStreaming?.join("\n") || ""}
+                            onChange={e => updateOperating("disableNavmeshStreaming", e.target.value.split("\n").filter(Boolean))}
+                        />
+                    </div>
+                </div>
             </CardContent>
         </Card>
     )

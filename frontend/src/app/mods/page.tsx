@@ -133,6 +133,7 @@ export default function ModsPage() {
                     modId: m.modId || m.id,
                     name: m.name || m.modId,
                     version: m.version || "",
+                    required: m.required !== undefined ? m.required : true, // Default to true if missing
                     path: "",
                     dependencies: []
                 })))
@@ -234,7 +235,12 @@ export default function ModsPage() {
             if (!config.game.mods) config.game.mods = []
 
             if (!config.game.mods.find((m: any) => (m.modId || m.id) === mod.modId)) {
-                config.game.mods.push({ modId: mod.modId, name: mod.name, version: mod.version || "" })
+                config.game.mods.push({ 
+                    modId: mod.modId, 
+                    name: mod.name, 
+                    version: mod.version || "",
+                    required: true 
+                })
             }
 
             await apiPost("/api/config", config)
@@ -252,7 +258,8 @@ export default function ModsPage() {
             config.game.mods = newEnabled.map(m => ({
                 modId: m.modId,
                 name: m.name,
-                version: m.version || ""
+                version: m.version || "",
+                required: (m as any).required ?? true
             }))
 
             await apiPost("/api/config", config)
@@ -688,7 +695,7 @@ export default function ModsPage() {
                             </CardHeader>
                             <CardContent>
                                 <Table>
-                                    <TableHeader><TableRow><TableHead>목록</TableHead><TableHead>ID</TableHead><TableHead>용량</TableHead><TableHead>의존성</TableHead><TableHead className="text-right">순서 / 관리</TableHead></TableRow></TableHeader>
+                                    <TableHeader><TableRow><TableHead>목록</TableHead><TableHead>ID</TableHead><TableHead>필수</TableHead><TableHead>용량</TableHead><TableHead>의존성</TableHead><TableHead className="text-right">순서 / 관리</TableHead></TableRow></TableHeader>
                                     <TableBody>
                                         {enabledMods.map((mod, index) => {
                                             // Find full info from installed mods to get dependencies
@@ -700,6 +707,19 @@ export default function ModsPage() {
                                                 <TableRow key={mod.modId}>
                                                     <TableCell className="font-medium">{mod.name}</TableCell>
                                                     <TableCell className="font-mono text-xs text-zinc-500">{mod.modId}</TableCell>
+                                                    <TableCell>
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={(mod as any).required ?? true} 
+                                                            onChange={(e) => {
+                                                                const newMods = [...enabledMods]
+                                                                newMods[index] = { ...mod, required: e.target.checked } as any
+                                                                setEnabledMods(newMods)
+                                                                saveEnabledModsToConfig(newMods)
+                                                            }}
+                                                            className="accent-amber-500"
+                                                        />
+                                                    </TableCell>
                                                     <TableCell className="text-sm text-zinc-400">{size > 0 ? formatBytes(size) : "-"}</TableCell>
                                                     <TableCell>
                                                         <div className="flex flex-wrap gap-1 max-w-[250px]">

@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { ServerConfig } from "@/types/schema"
+import { MissionHeaderEditor } from "./MissionHeaderEditor"
 
 interface Props {
     config: ServerConfig
@@ -52,6 +53,12 @@ export function ConfigGameplay({ config, updateGame, updateGameProps, updateOper
                     </div>
                 </CardContent>
             </Card>
+
+            {/* Mission Header Editor */}
+            <MissionHeaderEditor 
+                header={config.game.gameProperties.missionHeader || {}} 
+                updateHeader={(newHeader) => updateGameProps("missionHeader", newHeader)} 
+            />
         </div>
     )
 }

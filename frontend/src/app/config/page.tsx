@@ -48,6 +48,14 @@ const defaultConfig: ServerConfig = {
         mods: [],
     },
     a2s: { address: "0.0.0.0", port: 17777 },
+    rcon: {
+        address: "0.0.0.0",
+        port: 19999,
+        password: "changeme",
+        permission: "monitor",
+        blacklist: [],
+        whitelist: []
+    },
     operating: {
         lobbyPlayerSynchronise: true,
         playerSaveTime: 300,

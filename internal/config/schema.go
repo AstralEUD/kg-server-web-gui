@@ -8,8 +8,18 @@ type ServerConfig struct {
 	PublicPort    int    `json:"publicPort,omitempty"`
 
 	A2S       A2SConfig       `json:"a2s,omitempty"`
+	Rcon      RconConfig      `json:"rcon,omitempty"`
 	Game      GameConfig      `json:"game"`
 	Operating OperatingConfig `json:"operating,omitempty"`
+}
+
+type RconConfig struct {
+	Address    string   `json:"address,omitempty"`
+	Port       int      `json:"port"`
+	Password   string   `json:"password"`
+	Permission string   `json:"permission,omitempty"` // monitor, admin, etc.
+	Blacklist  []string `json:"blacklist,omitempty"`
+	Whitelist  []string `json:"whitelist,omitempty"`
 }
 
 type GameConfig struct {
