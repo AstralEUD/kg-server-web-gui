@@ -164,3 +164,38 @@ func (h *ApiHandlers) recordCommand(cmd string) {
 	data, _ := json.MarshalIndent(history, "", "  ")
 	os.WriteFile(path, data, 0644)
 }
+
+// ValidateConfig checks if the raw config string is valid JSON and follows schema rules
+func (h *ApiHandlers) ValidateConfig(c *fiber.Ctx) error {
+	var req struct {
+		Content string `json:"content"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"valid": false, "error": "Invalid body"})
+	}
+
+	var cfg config.ServerConfig
+	if err := json.Unmarshal([]byte(req.Content), &cfg); err != nil {
+		return c.JSON(fiber.Map{
+			"valid": false,
+			"error": "JSON Syntax Error: " + err.Error(),
+		})
+	}
+
+	warning := ""
+	// Check for conflict: Rcon object AND Game.RconPassword
+	if cfg.Rcon != nil && (cfg.Game.RconPassword != "" || cfg.Game.RconPort != 0) {
+		warning = "Detected conflict: 'rcon' object and 'game.rconPassword' are both present. The game fields will be automatically removed securely."
+	}
+
+	// Check for missing A2S addr
+	if cfg.A2S != nil && cfg.A2S.Address == "" {
+		cfg.A2S.Address = "0.0.0.0"
+		warning = "A2S Address missing. Will default to 0.0.0.0"
+	}
+
+	return c.JSON(fiber.Map{
+		"valid":   true,
+		"warning": warning,
+	})
+}
