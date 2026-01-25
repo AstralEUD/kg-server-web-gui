@@ -13,7 +13,7 @@ type ServerConfig struct {
 }
 
 type RconConfig struct {
-	Address    string   `json:"address,omitempty"`
+	Address    string   `json:"address"`
 	Port       int      `json:"port,omitempty"`
 	Password   string   `json:"password,omitempty"`
 	Permission string   `json:"permission,omitempty"` // monitor, admin, etc.

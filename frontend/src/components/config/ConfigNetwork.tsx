@@ -55,7 +55,11 @@ export function ConfigNetwork({ config, setConfig, updateGame }: Props) {
                         <div className="space-y-4">
                             <div className="space-y-2">
                                 <Label>RCON 주소</Label>
-                                <Input value={config.rcon?.address || "0.0.0.0"} onChange={e => setConfig({ ...config, rcon: { ...config.rcon!, address: e.target.value } })} className="bg-zinc-900 border-zinc-700" />
+                                <Input 
+                                    value={config.rcon?.address || "0.0.0.0"} 
+                                    onChange={e => setConfig({ ...config, rcon: { ...config.rcon!, address: e.target.value || "0.0.0.0" } })} 
+                                    className="bg-zinc-900 border-zinc-700" 
+                                />
                             </div>
                             <div className="space-y-2">
                                 <Label>RCON 포트</Label>
