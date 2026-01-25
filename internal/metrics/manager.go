@@ -106,7 +106,7 @@ func (m *Manager) collectForInstance(id string) {
 	point := DataPoint{
 		Timestamp: time.Now(),
 		CPU:       latest.CPU,
-		RAM:       latest.Memory / (1024 * 1024), // Convert to MB
+		RAM:       uint64(latest.MemoryMB),
 		Players:   players,
 		FPS:       fps,
 	}

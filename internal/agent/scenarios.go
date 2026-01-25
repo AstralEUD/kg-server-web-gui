@@ -77,6 +77,14 @@ func parseScenarios(output string, addonDirs []string) []Scenario {
 				modID = guidMatch[1]
 			}
 
+			// Extract name from path if possible
+			name := match
+			if lastSlash := strings.LastIndex(match, "/"); lastSlash != -1 {
+				name = strings.TrimSuffix(match[lastSlash+1:], ".conf")
+			} else {
+				name = strings.TrimSuffix(match, ".conf")
+			}
+
 			// Only add if not already present (prioritize CLI output if we want? or Vanilla?
 			// Actually if CLI finds it, it might have same ID but different name display?
 			// Let's overwrite with CLI found ones as they verify presence.
