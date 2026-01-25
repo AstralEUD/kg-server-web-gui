@@ -64,6 +64,9 @@ func (im *InstanceManager) SendRconCommand(id string, command string) (string, e
 		rconPass = cfg.Rcon.Password
 	}
 
+	// Defensive: A2S is separate, but just ensuring we don't crash if accessed elsewhere.
+	// Current function only needs RCON. Proceed.
+
 	if rconHost == "" {
 		rconHost = "127.0.0.1"
 	}

@@ -39,7 +39,12 @@ export function ConfigNetwork({ config, setConfig, updateGame }: Props) {
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
                         <Label>A2S 주소</Label>
-                        <Input value={config.a2s?.address || ""} onChange={e => setConfig({ ...config, a2s: { ...config.a2s, address: e.target.value } })} placeholder="0.0.0.0" className="bg-zinc-900 border-zinc-700" />
+                        <Input 
+                            value={config.a2s?.address || "0.0.0.0"} 
+                            onChange={e => setConfig({ ...config, a2s: { ...config.a2s, address: e.target.value || "0.0.0.0" } })} 
+                            placeholder="0.0.0.0" 
+                            className="bg-zinc-900 border-zinc-700" 
+                        />
                     </div>
                     <div className="space-y-2">
                         <Label>A2S 포트</Label>

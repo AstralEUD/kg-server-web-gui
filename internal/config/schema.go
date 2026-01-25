@@ -75,7 +75,7 @@ type ModEntry struct {
 }
 
 type A2SConfig struct {
-	Address string `json:"address,omitempty"`
+	Address string `json:"address"`
 	Port    int    `json:"port,omitempty"`
 }
 
