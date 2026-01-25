@@ -7,7 +7,32 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { BarChart3, TrendingUp, Users, Cpu, Activity, Calendar, RefreshCw } from "lucide-react"
 import { apiGet } from "@/lib/api"
 
-// ... (interfaces MetricPoint, UptimeData omitted)
+import {
+    LineChart,
+    Line,
+    AreaChart,
+    Area,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    ResponsiveContainer
+} from 'recharts'
+
+interface MetricPoint {
+    timestamp: string
+    time: string
+    cpu: number
+    ram: number
+    fps: number
+    players: number
+}
+
+interface UptimeData {
+    uptimePercent: number
+    totalMinutes: number
+    onlineMinutes: number
+}
 
 export default function StatsPage() {
     const [servers, setServers] = useState<any[]>([])

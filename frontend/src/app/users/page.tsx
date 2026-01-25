@@ -11,9 +11,15 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Users, Plus, Trash2, Loader2, Shield, User as UserIcon } from "lucide-react"
 
+import { toast } from "sonner"
 import { apiGet, apiPost, apiDelete } from "@/lib/api"
 
-// ... (interface User omitted)
+interface User {
+    id: string
+    username: string
+    role: string
+    createdAt: string
+}
 
 export default function UsersPage() {
     const [users, setUsers] = useState<User[]>([])

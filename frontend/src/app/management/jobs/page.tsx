@@ -10,7 +10,35 @@ import { Badge } from "@/components/ui/badge"
 import { Calendar, Clock, Plus, Trash2, Play, RefreshCw, Save, X, Server } from "lucide-react"
 import { apiGet, apiPost, apiDelete } from "@/lib/api"
 
-// ... (Job interface and presets omitted)
+import { Switch } from "@/components/ui/switch"
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+    DialogDescription,
+} from "@/components/ui/dialog"
+
+interface Job {
+    id: string
+    name: string
+    type: string // restart, changemap, stop, start
+    cronExpr: string
+    args: string[]
+    enabled: boolean
+    lastRun?: string
+    nextRun?: string
+    description?: string
+}
+
+const PRESET_CRONS = [
+    { label: "매일 새벽 4시", value: "0 0 4 * * *" },
+    { label: "매일 아침 6시", value: "0 0 6 * * *" },
+    { label: "매 시간 정각", value: "0 0 * * * *" },
+    { label: "30분 마다", value: "0 */30 * * * *" }, // robfig/cron specific
+    { label: "매주 월요일 0시", value: "0 0 0 * * 1" },
+]
 
 export default function JobsPage() {
     const [jobs, setJobs] = useState<Job[]>([])

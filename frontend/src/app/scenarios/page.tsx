@@ -11,7 +11,16 @@ import { Map, Play, RefreshCw, Copy, Check, Loader2, Info, Plus, Trash2, GripVer
 
 import { apiGet, apiPost } from "@/lib/api"
 
-// ... (interfaces Scenario, MissionHeader omitted)
+interface Scenario {
+    scenarioId: string
+    name: string
+    imageUrl?: string
+}
+
+interface MissionHeader {
+    mission: string
+    [key: string]: any
+}
 
 export default function ScenariosPage() {
     const [scenarios, setScenarios] = useState<Scenario[]>([])

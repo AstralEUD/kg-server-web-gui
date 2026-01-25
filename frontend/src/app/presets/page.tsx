@@ -11,7 +11,15 @@ import { Layers, Plus, Trash2, Edit2, Save, Loader2, Check, Upload, Play } from 
 
 import { apiGet, apiPost, apiDelete } from "@/lib/api"
 
-// ... (interface Preset omitted)
+interface Preset {
+    id: string
+    name: string
+    description: string
+    config?: any
+    createdAt?: string
+    mods?: any[]
+    collectionItems?: any[]
+}
 
 export default function ProfilesPage() {
     const [presets, setPresets] = useState<Preset[]>([])

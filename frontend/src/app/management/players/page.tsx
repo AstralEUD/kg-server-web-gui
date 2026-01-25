@@ -9,8 +9,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Users, Shield, RefreshCw, Ban, UserX, AlertTriangle } from "lucide-react"
 import { apiGet, apiPost } from "@/lib/api"
-
-// ... (Dialog/Table imports omitted)
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+    DialogDescription,
+} from "@/components/ui/dialog"
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table"
 
 export default function PlayersPage() {
     const [servers, setServers] = useState<any[]>([])

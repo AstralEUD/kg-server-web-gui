@@ -7,7 +7,48 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { HardDrive, Archive, RotateCcw, Trash2, RefreshCw, Clock, Download, Loader2 } from "lucide-react"
 import { apiGet, apiPost, apiDelete } from "@/lib/api"
 
-// ... (interface SaveFile, formatters omitted)
+interface SaveFile {
+    name: string
+    size: number
+    modified: string
+    isDir: boolean
+}
+
+function formatDate(dateStr: string) {
+    try {
+        const d = new Date(dateStr)
+        return d.toLocaleString()
+    } catch (e) {
+        return dateStr
+    }
+}
+
+function formatBytes(bytes: number) {
+    if (typeof bytes !== 'number' || isNaN(bytes)) return '0 Bytes';
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    if (i < 0) return bytes + ' Bytes';
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+interface Mod {
+    modId: string
+    name: string
+    version: string
+    path: string
+    size?: number
+    dependencies: string[]
+}
+
+interface WorkshopAddon {
+    id: string
+    name: string
+    summary?: string
+    dependencies?: { id: string; name: string }[]
+    scenarios?: { scenarioId: string; name: string }[]
+}
 
 export default function SavesPage() {
     const [saves, setSaves] = useState<SaveFile[]>([])

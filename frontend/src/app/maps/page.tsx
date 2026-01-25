@@ -11,7 +11,29 @@ import { Map, Play, Plus, Trash2, RefreshCw, Loader2, Check, Hash, Zap, MessageS
 
 import { apiGet, apiPost, apiDelete } from "@/lib/api"
 
-// ... (interfaces MapMapping, Scenario, CurrentMap omitted)
+interface MapMapping {
+    slot: number
+    scenarioId: string
+    name: string
+}
+
+interface Preset {
+    id: string
+    name: string
+    description: string
+    config?: any
+}
+
+interface Scenario {
+    scenarioId: string
+    name: string
+}
+
+interface CurrentMap {
+    slot?: number
+    name?: string
+    scenarioId: string
+}
 
 export default function MapsPage() {
     const [mappings, setMappings] = useState<MapMapping[]>([])

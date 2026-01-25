@@ -13,13 +13,44 @@ import { toast } from "sonner"
 import { apiGet, apiPost, apiDelete } from "@/lib/api"
 import DependencyTree from "@/components/DependencyTree"
 
-// ... (formatters and interfaces omitted)
+function formatBytes(bytes: number) {
+    if (typeof bytes !== 'number' || isNaN(bytes)) return '0 Bytes';
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    if (i < 0) return bytes + ' Bytes';
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+interface Mod {
+    modId: string
+    name: string
+    version: string
+    path: string
+    size?: number
+    dependencies: string[]
+}
+
+interface WorkshopAddon {
+    id: string
+    name: string
+    summary?: string
+    dependencies?: { id: string; name: string }[]
+    scenarios?: { scenarioId: string; name: string }[]
+}
 
 export default function ModsPage() {
     const [installedMods, setInstalledMods] = useState<Mod[]>([]) // Disk
     const [enabledMods, setEnabledMods] = useState<Mod[]>([])     // Config
     const [collectionMods, setCollectionMods] = useState<Mod[]>([]) // User's "My List"
 
+    const getModName = (modId: string) => {
+        // Try to find name in all known mod lists
+        const found = [...installedMods, ...enabledMods, ...collectionMods].find(m => m.modId === modId)
+        return found ? found.name : modId
+    }
+    
     const [modCategories, setModCategories] = useState<Record<string, string>>({}) // ModID -> Category
 
     const [searchQuery, setSearchQuery] = useState("")
@@ -177,6 +208,22 @@ export default function ModsPage() {
         } catch (e) { console.error(e) }
     }
 
+    const removeFromCollection = async (modId: string) => {
+        if (!confirm("모음집에서 이 모드를 제거하시겠습니까?")) return
+        const updated = collectionMods.filter(m => m.modId !== modId)
+        await saveCollectionToBackend(updated)
+    }
+
+    const togglePinVersion = async (modId: string, currentVersion: string, isPinned: boolean) => {
+        const nextMods = collectionMods.map(m => {
+            if (m.modId === modId) {
+                return { ...m, version: isPinned ? "" : currentVersion }
+            }
+            return m
+        })
+        await saveCollectionToBackend(nextMods)
+    }
+
     // Add Collection to Config (Enable)
     const enableModFromCollection = async (mod: Mod) => {
         setAddingToConfig(true)
@@ -316,6 +363,18 @@ export default function ModsPage() {
         setLoading(false)
     }
 
+    const buildTree = (modId: string, flatList: any[]): any => {
+        const mod = flatList.find(m => (m.id || m.modId) === modId)
+        if (!mod) return { id: modId, name: modId, dependencies: [] }
+
+        return {
+            id: mod.id || mod.modId,
+            name: mod.name,
+            version: mod.version,
+            dependencies: (mod.dependencies || []).map((dep: any) => buildTree(dep.id || dep, flatList))
+        }
+    }
+
     const handleViewTree = async (modId: string) => {
         setTreeLoading(true)
         try {
@@ -359,6 +418,32 @@ export default function ModsPage() {
         const isInstalled = installedMods.some(m => m.modId === modId)
         const isEnabled = enabledMods.some(m => m.modId === modId)
         return { isInstalled, isEnabled }
+    }
+    const uniqueCategories = ["All", ...Array.from(new Set(Object.values(modCategories)))]
+
+    const sortedCollection = collectionMods
+        .filter(m => filterCategory === "All" || modCategories[m.modId] === filterCategory)
+        .sort((a, b) => {
+            if (collectionSortKey === 'name') {
+                return collectionSortOrder === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)
+            } else if (collectionSortKey === 'size') {
+                const sizeA = installedMods.find(m => m.modId === a.modId)?.size || 0
+                const sizeB = installedMods.find(m => m.modId === b.modId)?.size || 0
+                return collectionSortOrder === 'asc' ? sizeA - sizeB : sizeB - sizeA
+            } else {
+                const catA = modCategories[a.modId] || ""
+                const catB = modCategories[b.modId] || ""
+                return collectionSortOrder === 'asc' ? catA.localeCompare(catB) : catB.localeCompare(catA)
+            }
+        })
+
+    const toggleCollectionSort = (key: 'name' | 'size' | 'category') => {
+        if (collectionSortKey === key) {
+            setCollectionSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')
+        } else {
+            setCollectionSortKey(key)
+            setCollectionSortOrder('asc')
+        }
     }
 
     return (
@@ -434,7 +519,7 @@ export default function ModsPage() {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {sortedCollection.map(mod => {
+                                        {sortedCollection.map((mod: Mod) => {
                                             const { isInstalled, isEnabled } = getStatus(mod.modId)
                                             const installedInfo = installedMods.find(im => im.modId === mod.modId)
                                             const size = installedInfo?.size || 0
@@ -470,7 +555,7 @@ export default function ModsPage() {
                                                     <TableCell>
                                                         <div className="flex flex-wrap gap-1 max-w-[300px]">
                                                             {mod.dependencies && mod.dependencies.length > 0 ? (
-                                                                mod.dependencies.slice(0, 5).map(depId => (
+                                                                 mod.dependencies.slice(0, 5).map((depId: string) => (
                                                                     <Badge key={depId} variant="outline" className="text-[10px] py-0 px-1 bg-zinc-800/50 border-zinc-700 text-zinc-400 whitespace-nowrap" title={depId}>
                                                                         {getModName(depId)}
                                                                     </Badge>
@@ -678,7 +763,7 @@ export default function ModsPage() {
                                                 <TableCell>
                                                     <div className="flex flex-wrap gap-1 max-w-[250px]">
                                                         {m.dependencies && m.dependencies.length > 0 ? (
-                                                            m.dependencies.slice(0, 3).map(depId => (
+                                                             m.dependencies.slice(0, 3).map((depId: string) => (
                                                                 <Badge key={depId} variant="outline" className="text-[10px] py-0 px-1 bg-amber-500/5 border-amber-500/20 text-amber-500/70 whitespace-nowrap" title={depId}>
                                                                     {getModName(depId)}
                                                                 </Badge>

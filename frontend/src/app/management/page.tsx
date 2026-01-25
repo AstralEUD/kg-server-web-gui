@@ -8,9 +8,52 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
+import { Settings, Clock, Gauge, Zap, Save, Download, Loader2, Server, Trash2, Plus } from "lucide-react"
+import { toast } from "sonner"
 import { apiGet, apiPost, apiDelete } from "@/lib/api"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog"
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table"
 
-// ... (AdvancedSettings and defaultSettings omitted)
+interface AdvancedSettings {
+    limitServerMaxFPS: boolean
+    maxFPS: number
+    autoRestart: boolean
+    restartTime: string
+    verifyRepairAddons: boolean
+    restartOnGameDestroyed: boolean
+    autoReloadScenario: boolean
+    reloadScenarioInterval: number
+}
+
+const defaultSettings: AdvancedSettings = {
+    limitServerMaxFPS: false, maxFPS: 60,
+    autoRestart: false, restartTime: "04:00",
+    verifyRepairAddons: true,
+    restartOnGameDestroyed: false,
+    autoReloadScenario: false,
+    reloadScenarioInterval: 0
+}
+
+interface ServerInstance {
+    id: string
+    name: string
+    status: string
+}
 
 export default function ManagementPage() {
     const router = useRouter()
@@ -19,7 +62,7 @@ export default function ManagementPage() {
     const [downloading, setDownloading] = useState(false)
 
     // Server Management State
-    const [servers, setServers] = useState<any[]>([])
+    const [servers, setServers] = useState<ServerInstance[]>([])
     const [createDialogOpen, setCreateDialogOpen] = useState(false)
     const [newServerName, setNewServerName] = useState("")
     const [newServerId, setNewServerId] = useState("")

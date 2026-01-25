@@ -9,9 +9,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Cog, FolderOpen, Save, Server, Package, User, Loader2, CheckCircle, Download, Upload } from "lucide-react"
 import { toast } from "sonner"
 
-import { apiGet, apiPost } from "@/lib/api"
+import { apiGet, apiPost, apiFetch } from "@/lib/api"
 
-// ... (AppSettings interface)
+interface AppSettings {
+    serverPath: string
+    addonsPath: string
+    profilesPath: string
+    steamcmdPath: string
+    defaultServerName: string
+    discordWebhookUrl: string
+    enableWatchdog: boolean
+    discordBotToken: string
+    discordChannelId: string
+    enableDiscordBot: boolean
+    enableRconMonitor: boolean
+}
 
 export default function SettingsPage() {
     const [settings, setSettings] = useState<AppSettings>({
