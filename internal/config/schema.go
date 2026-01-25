@@ -22,16 +22,16 @@ type RconConfig struct {
 }
 
 type GameConfig struct {
-	Name          string `json:"name"`
-	Password      string `json:"password,omitempty"`
-	PasswordAdmin string `json:"passwordAdmin,omitempty"`
-	RconPassword  string `json:"rconPassword,omitempty"`
-	RconPort      int    `json:"rconPort,omitempty"`
-	// Admins             []string `json:"admins,omitempty"` // Deprecated/Separate config
-	ScenarioID    string `json:"scenarioId"`
-	MaxPlayers    int    `json:"maxPlayers"`
-	Visible       bool   `json:"visible"`
-	CrossPlatform bool   `json:"crossPlatform"`
+	Name          string   `json:"name"`
+	Password      string   `json:"password,omitempty"`
+	PasswordAdmin string   `json:"passwordAdmin,omitempty"`
+	RconPassword  string   `json:"rconPassword,omitempty"`
+	RconPort      int      `json:"rconPort,omitempty"`
+	Admins        []string `json:"admins,omitempty"`
+	ScenarioID    string   `json:"scenarioId"`
+	MaxPlayers    int      `json:"maxPlayers"`
+	Visible       bool     `json:"visible"`
+	CrossPlatform bool     `json:"crossPlatform"`
 	// SupportedPlatforms []string `json:"supportedPlatforms,omitempty"` // Engine warning
 
 	GameProperties GameProps `json:"gameProperties"`
@@ -68,10 +68,9 @@ type MissionHeaderConfig = map[string]any
 // Let's use a struct with fields matching the user sample for now.
 
 type ModEntry struct {
-	ModID    string `json:"modId"`
-	Name     string `json:"name,omitempty"`
-	Version  string `json:"version,omitempty"` // For info
-	Required bool   `json:"required,omitempty"`
+	ModID   string `json:"modId"`
+	Name    string `json:"name,omitempty"`
+	Version string `json:"version,omitempty"` // For info
 }
 
 type A2SConfig struct {

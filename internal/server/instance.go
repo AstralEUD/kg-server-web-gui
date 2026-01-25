@@ -304,6 +304,24 @@ func (im *InstanceManager) ResolveServerArgs(id string, userArgs []string) []str
 		args = append(args, "-server")
 	}
 
+	// Dynamic Settings from Instance configuration
+	// These are stored in ServerInstance.Settings (server_manager.go handles persistence)
+	im.mu.RLock()
+	inst, ok := im.instances[id]
+	im.mu.RUnlock()
+
+	if ok && inst.Settings != nil {
+		if fps, ok := inst.Settings["maxFPS"]; ok && fps != "" {
+			args = append(args, "-maxFPS", fps)
+		}
+		if level, ok := inst.Settings["logLevel"]; ok && level != "" {
+			args = append(args, "-logLevel", level)
+		}
+		if reload, ok := inst.Settings["autoReload"]; ok && reload == "true" {
+			args = append(args, "-autoReloadScenario")
+		}
+	}
+
 	workDir, _ := os.Getwd()
 
 	// 1. Config Path
