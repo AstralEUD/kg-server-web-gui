@@ -2,21 +2,20 @@ package config
 
 // ServerConfig represents the complete Arma Reforger server.json structure
 type ServerConfig struct {
-	BindAddress   string `json:"bindAddress,omitempty"`
-	BindPort      int    `json:"bindPort,omitempty"`
-	PublicAddress string `json:"publicAddress,omitempty"`
-	PublicPort    int    `json:"publicPort,omitempty"`
-
-	A2S       A2SConfig       `json:"a2s,omitempty"`
-	Rcon      RconConfig      `json:"rcon,omitempty"`
-	Game      GameConfig      `json:"game"`
-	Operating OperatingConfig `json:"operating,omitempty"`
+	BindAddress   string           `json:"bindAddress,omitempty"`
+	BindPort      int              `json:"bindPort,omitempty"`
+	PublicAddress string           `json:"publicAddress,omitempty"`
+	PublicPort    int              `json:"publicPort,omitempty"`
+	A2S           *A2SConfig       `json:"a2s,omitempty"`
+	Rcon          *RconConfig      `json:"rcon,omitempty"`
+	Game          GameConfig       `json:"game"`
+	Operating     *OperatingConfig `json:"operating,omitempty"`
 }
 
 type RconConfig struct {
 	Address    string   `json:"address,omitempty"`
-	Port       int      `json:"port"`
-	Password   string   `json:"password"`
+	Port       int      `json:"port,omitempty"`
+	Password   string   `json:"password,omitempty"`
 	Permission string   `json:"permission,omitempty"` // monitor, admin, etc.
 	Blacklist  []string `json:"blacklist,omitempty"`
 	Whitelist  []string `json:"whitelist,omitempty"`

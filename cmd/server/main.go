@@ -18,7 +18,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/logger"
 )
 
-const Version = "3.0.8"
+const Version = "3.0.9"
 
 //go:embed all:frontend_build
 var frontendFS embed.FS

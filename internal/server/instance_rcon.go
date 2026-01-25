@@ -55,12 +55,18 @@ func (im *InstanceManager) SendRconCommand(id string, command string) (string, e
 	// We should use the new RconConfig struct if available, or fallback to Game.Rcon*
 
 	// Try new RCON struct first
-	rconHost := cfg.Rcon.Address
+	var rconHost, rconPass string
+	var rconPort int
+
+	if cfg.Rcon != nil {
+		rconHost = cfg.Rcon.Address
+		rconPort = cfg.Rcon.Port
+		rconPass = cfg.Rcon.Password
+	}
+
 	if rconHost == "" {
 		rconHost = "127.0.0.1"
 	}
-	rconPort := cfg.Rcon.Port
-	rconPass := cfg.Rcon.Password
 
 	// Fallback to legacy location if new one is empty
 	if rconPort == 0 && cfg.Game.RconPort != 0 {
