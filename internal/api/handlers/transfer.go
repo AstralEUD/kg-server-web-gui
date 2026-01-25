@@ -78,36 +78,3 @@ func (h *ApiHandlers) ImportSettings(c *fiber.Ctx) error {
 
 	return c.JSON(response.Success(fiber.Map{"status": "success", "message": "Settings imported successfully. Restart may be required."}))
 }
-
-// ValidateConfig validates a server.json content
-func (h *ApiHandlers) ValidateConfig(c *fiber.Ctx) error {
-	var req struct {
-		Content string `json:"content"`
-	}
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(response.Error(err.Error()))
-	}
-
-	var cfg interface{}
-	if err := json.Unmarshal([]byte(req.Content), &cfg); err != nil {
-		return c.Status(400).JSON(response.Success(fiber.Map{"valid": false, "error": err.Error()}))
-	}
-
-	// Basic check for required fields in Arma Reforger server.json
-	rawMap, ok := cfg.(map[string]interface{})
-	if !ok {
-		return c.JSON(response.Success(fiber.Map{"valid": false, "error": "Not a JSON object"}))
-	}
-
-	// Check game section
-	game, ok := rawMap["game"].(map[string]interface{})
-	if !ok {
-		return c.JSON(response.Success(fiber.Map{"valid": false, "error": "'game' section missing"}))
-	}
-
-	if _, exists := game["scenarioId"]; !exists {
-		return c.JSON(response.Success(fiber.Map{"valid": true, "warning": "scenarioId is missing, but JSON is valid"}))
-	}
-
-	return c.JSON(response.Success(fiber.Map{"valid": true}))
-}
