@@ -8,6 +8,7 @@ require (
 	github.com/gofiber/fiber/v2 v2.52.10
 	github.com/google/uuid v1.6.0
 	github.com/james4k/rcon v0.0.0-20210222224819-34a67ca2b2d6
+	github.com/multiplay/go-battleye v0.0.0-20171201123450-5c3fa7b6ea4c
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/shirou/gopsutil/v3 v3.24.5
 	golang.org/x/crypto v0.46.0
