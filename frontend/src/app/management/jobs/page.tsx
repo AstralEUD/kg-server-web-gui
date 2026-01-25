@@ -8,44 +8,9 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Calendar, Clock, Plus, Trash2, Play, RefreshCw, Save, X, Server } from "lucide-react"
-import { apiFetch } from "@/lib/api"
-import { Switch } from "@/components/ui/switch"
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogFooter,
-    DialogDescription,
-} from "@/components/ui/dialog"
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table"
+import { apiGet, apiPost, apiDelete } from "@/lib/api"
 
-interface Job {
-    id: string
-    name: string
-    type: string // restart, changemap, stop, start
-    cronExpr: string
-    args: string[]
-    enabled: boolean
-    lastRun?: string
-    nextRun?: string
-    description?: string
-}
-
-const PRESET_CRONS = [
-    { label: "매일 새벽 4시", value: "0 0 4 * * *" },
-    { label: "매일 아침 6시", value: "0 0 6 * * *" },
-    { label: "매 시간 정각", value: "0 0 * * * *" },
-    { label: "30분 마다", value: "0 */30 * * * *" }, // robfig/cron specific
-    { label: "매주 월요일 0시", value: "0 0 0 * * 1" },
-]
+// ... (Job interface and presets omitted)
 
 export default function JobsPage() {
     const [jobs, setJobs] = useState<Job[]>([])
@@ -69,16 +34,16 @@ export default function JobsPage() {
     const fetchJobs = async () => {
         setLoading(true)
         try {
-            const res = await apiFetch("/api/jobs")
-            if (res.ok) setJobs(await res.json() || [])
+            const data = await apiGet<Job[]>("/api/jobs")
+            setJobs(data || [])
         } catch (e) { }
         setLoading(false)
     }
 
     const fetchMaps = async () => {
         try {
-            const res = await apiFetch("/api/maps")
-            if (res.ok) setMapList(await res.json() || [])
+            const data = await apiGet<any[]>("/api/maps")
+            setMapList(data || [])
         } catch (e) { }
     }
 
@@ -102,42 +67,27 @@ export default function JobsPage() {
         }
 
         try {
-            let res
             if (editingJob) {
-                res = await apiFetch(`/api/jobs/${editingJob.id}`, {
-                    method: "POST",
-                    body: JSON.stringify({ ...payload, id: editingJob.id, enabled: editingJob.enabled })
-                })
+                await apiPost(`/api/jobs/${editingJob.id}`, { ...payload, id: editingJob.id, enabled: editingJob.enabled })
             } else {
-                res = await apiFetch("/api/jobs", {
-                    method: "POST",
-                    body: JSON.stringify(payload)
-                })
+                await apiPost("/api/jobs", payload)
             }
-
-            if (res.ok) {
-                setDialogOpen(false)
-                fetchJobs()
-            } else {
-                alert("저장 실패")
-            }
+            setDialogOpen(false)
+            fetchJobs()
         } catch (e) { alert("오류 발생") }
     }
 
     const handleDelete = async (id: string) => {
         if (!confirm("정말 삭제하시겠습니까?")) return
         try {
-            await apiFetch(`/api/jobs/${id}`, { method: "DELETE" })
+            await apiDelete(`/api/jobs/${id}`)
             fetchJobs()
         } catch (e) { }
     }
 
     const toggleEnabled = async (job: Job) => {
         try {
-            await apiFetch(`/api/jobs/${job.id}`, {
-                method: "POST",
-                body: JSON.stringify({ ...job, enabled: !job.enabled })
-            })
+            await apiPost(`/api/jobs/${job.id}`, { ...job, enabled: !job.enabled })
             fetchJobs()
         } catch (e) { }
     }

@@ -17,7 +17,10 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
-import { apiFetch } from "@/lib/api"
+import { apiGet, apiPost } from "@/lib/api"
+
+// ... (navItems omitted for brevity, but I should probably keep them or use replace_file_content carefully)
+// Wait, I need to keep the navItems. I'll use a better replacement chunk.
 
 const navItems = [
     { href: "/", label: "대시보드", icon: LayoutDashboard },
@@ -57,7 +60,7 @@ export function Sidebar() {
     }, [])
 
     useEffect(() => {
-        if (servers.length > 0) {
+        if (servers && servers.length > 0) {
             const found = servers.find(s => s.id === serverId) || servers.find(s => s.id === 'default')
             setCurrentServer(found)
         }
@@ -65,11 +68,8 @@ export function Sidebar() {
 
     const fetchServers = async () => {
         try {
-            const res = await apiFetch("/api/servers")
-            if (res.ok) {
-                const data = await res.json()
-                setServers(data || [])
-            }
+            const data = await apiGet<any[]>("/api/servers")
+            setServers(data || [])
         } catch (e) { console.error('Servers fetch error:', e) }
     }
 
@@ -81,10 +81,9 @@ export function Sidebar() {
 
     const handleLogout = async () => {
         try {
-            await apiFetch("/api/auth/logout", { method: "POST" })
+            await apiPost("/api/auth/logout")
         } catch (e) { console.error('Logout error:', e) }
 
-        // Fix #9: Don't remove auth_token from localStorage (rely on httpOnly cookie)
         localStorage.removeItem("username")
         localStorage.removeItem("role")
         router.push("/login")
@@ -220,7 +219,7 @@ export function Sidebar() {
                     />
                 </div>
                 <div className="text-xs text-zinc-600 text-center mt-2">
-                    v1.0.0
+                    v3.0.4
                 </div>
             </div>
         </aside>

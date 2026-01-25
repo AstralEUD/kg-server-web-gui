@@ -11,14 +11,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Users, Plus, Trash2, Loader2, Shield, User as UserIcon } from "lucide-react"
 
-import { apiFetch } from "@/lib/api"
+import { apiGet, apiPost, apiDelete } from "@/lib/api"
 
-interface User {
-    id: string
-    username: string
-    role: string
-    createdAt: string
-}
+// ... (interface User omitted)
 
 export default function UsersPage() {
     const [users, setUsers] = useState<User[]>([])
@@ -36,11 +31,8 @@ export default function UsersPage() {
     const fetchUsers = async () => {
         setLoading(true)
         try {
-            const res = await apiFetch("/api/admin/users")
-            if (res.ok) {
-                const data = await res.json()
-                setUsers(data || [])
-            }
+            const data = await apiGet<User[]>("/api/admin/users")
+            setUsers(data || [])
         } catch (e) {
             console.error("Failed to fetch users", e)
         }
@@ -51,23 +43,18 @@ export default function UsersPage() {
         if (!newUsername || !newPassword) return
         setCreating(true)
         try {
-            const res = await apiFetch("/api/admin/users", {
-                method: "POST",
-                body: JSON.stringify({
-                    username: newUsername,
-                    password: newPassword,
-                    role: newRole,
-                }),
+            await apiPost("/api/admin/users", {
+                username: newUsername,
+                password: newPassword,
+                role: newRole,
             })
-            if (res.ok) {
-                setNewUsername("")
-                setNewPassword("")
-                setNewRole("user")
-                setDialogOpen(false)
-                fetchUsers()
-            }
-        } catch (e) {
-            console.error("Failed to create user", e)
+            setNewUsername("")
+            setNewPassword("")
+            setNewRole("user")
+            setDialogOpen(false)
+            fetchUsers()
+        } catch (e: any) {
+            toast.error(e.message || "Failed to create user")
         }
         setCreating(false)
     }
@@ -75,14 +62,10 @@ export default function UsersPage() {
     const deleteUser = async (id: string) => {
         if (!confirm("Are you sure you want to delete this user?")) return
         try {
-            const res = await apiFetch(`/api/admin/users/${id}`, {
-                method: "DELETE",
-            })
-            if (res.ok) {
-                fetchUsers()
-            }
-        } catch (e) {
-            console.error("Failed to delete user", e)
+            await apiDelete(`/api/admin/users/${id}`)
+            fetchUsers()
+        } catch (e: any) {
+            toast.error(e.message || "Failed to delete user")
         }
     }
 

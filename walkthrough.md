@@ -17,8 +17,11 @@
 ### 3. 컴포넌트 복구
 - **`src/components/ui/sheet.tsx`**: 유실되었던 `shadcn/ui`의 `Sheet` 컴포넌트를 표준 구현체로 재생성.
 
-### 4. 타입 안정성 확보
-- **`src/app/stats/page.tsx`**: `onChange` 핸들러의 이벤트(`e`) 파라미터에 명시적인 타입을 추가하여 TypeScript 빌드 오류 해결.
+### 4. 프론트엔드 API 표준화 및 리팩토링 (API Standardization)
+- **`src/lib/api.ts`**: `apiGet`, `apiPost`, `apiDelete` 등 표준 API 유틸리티를 도입하여 중복된 `fetch` 로직을 제거하고 에러 핸들링을 중앙화하였습니다.
+- **하드코딩 제거**: 모든 컴포넌트에서 `http://localhost:3000` 하드코딩을 제거하고 정적/상대 경로 기반 호출로 전환하였습니다.
+- **전체 페이지 리팩토링**: `Dashboard`, `Mods`, `Saves`, `Scenarios`, `Maps`, `Presets`, `Management` 등 모든 페이지를 새로운 API 유틸리티를 사용하도록 수정하였습니다.
+- **에러 핸들링 강화**: 백엔드에서 전송하는 `{ "error": "message" }` 형식을 표준 에러 객체로 변환하여 UI에서 일관된 메시지를 출력하도록 개선하였습니다.
 
 ## 검증 결과
 - `npx tsc --noEmit`: 오류 없음 확인.

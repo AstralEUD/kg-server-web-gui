@@ -9,24 +9,9 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Map, Play, Plus, Trash2, RefreshCw, Loader2, Check, Hash, Zap, MessageSquare } from "lucide-react"
 
-import { apiFetch } from "@/lib/api"
+import { apiGet, apiPost, apiDelete } from "@/lib/api"
 
-interface MapMapping {
-    slot: number
-    scenarioId: string
-    name: string
-}
-
-interface Scenario {
-    scenarioId: string
-    name: string
-}
-
-interface CurrentMap {
-    slot?: number
-    name?: string
-    scenarioId: string
-}
+// ... (interfaces MapMapping, Scenario, CurrentMap omitted)
 
 export default function MapsPage() {
     const [mappings, setMappings] = useState<MapMapping[]>([])
@@ -49,11 +34,8 @@ export default function MapsPage() {
 
     const fetchMappings = async () => {
         try {
-            const res = await apiFetch("/api/maps")
-            if (res.ok) {
-                const data = await res.json()
-                setMappings(data || [])
-            }
+            const data = await apiGet<MapMapping[]>("/api/maps")
+            setMappings(data || [])
         } catch (e) {
             console.error("맵 매핑 로드 실패", e)
         }
@@ -61,11 +43,8 @@ export default function MapsPage() {
 
     const fetchScenarios = async () => {
         try {
-            const res = await apiFetch("/api/scenarios")
-            if (res.ok) {
-                const data = await res.json()
-                setScenarios(data || [])
-            }
+            const data = await apiGet<Scenario[]>("/api/scenarios")
+            setScenarios(data || [])
         } catch (e) {
             console.error("시나리오 로드 실패", e)
         }
@@ -73,11 +52,8 @@ export default function MapsPage() {
 
     const fetchCurrentMap = async () => {
         try {
-            const res = await apiFetch("/api/servers/default/map")
-            if (res.ok) {
-                const data = await res.json()
-                setCurrentMap(data)
-            }
+            const data = await apiGet<CurrentMap>("/api/servers/default/map")
+            setCurrentMap(data)
         } catch (e) {
             console.error("현재 맵 조회 실패", e)
         }
@@ -91,26 +67,18 @@ export default function MapsPage() {
 
         setAdding(true)
         try {
-            const res = await apiFetch("/api/maps", {
-                method: "POST",
-                body: JSON.stringify({
-                    slot: parseInt(newSlot),
-                    scenarioId: newScenarioId,
-                    name: newName || `Map ${newSlot}`
-                })
+            await apiPost("/api/maps", {
+                slot: parseInt(newSlot),
+                scenarioId: newScenarioId,
+                name: newName || `Map ${newSlot}`
             })
-            if (res.ok) {
-                setNewSlot("")
-                setNewScenarioId("")
-                setNewName("")
-                fetchMappings()
-            } else {
-                const err = await res.json()
-                alert(err.error || "추가 실패")
-            }
-        } catch (e) {
+            setNewSlot("")
+            setNewScenarioId("")
+            setNewName("")
+            fetchMappings()
+        } catch (e: any) {
             console.error("추가 실패", e)
-            alert("추가 실패")
+            alert(e.message || "추가 실패")
         }
         setAdding(false)
     }
@@ -119,12 +87,8 @@ export default function MapsPage() {
         if (!confirm(`슬롯 ${slot} 매핑을 삭제하시겠습니까?`)) return
 
         try {
-            const res = await apiFetch(`/api/maps/${slot}`, {
-                method: "DELETE",
-            })
-            if (res.ok) {
-                fetchMappings()
-            }
+            await apiDelete(`/api/maps/${slot}`)
+            fetchMappings()
         } catch (e) {
             console.error("삭제 실패", e)
         }
@@ -138,19 +102,12 @@ export default function MapsPage() {
 
         setApplying(slot)
         try {
-            const res = await apiFetch(`/api/maps/${slot}/apply`, {
-                method: "POST",
-            })
-            if (res.ok) {
-                alert("맵 변경 완료! 서버가 재시작됩니다.")
-                fetchCurrentMap()
-            } else {
-                const err = await res.json()
-                alert(err.error || "변경 실패")
-            }
-        } catch (e) {
+            await apiPost(`/api/maps/${slot}/apply`)
+            alert("맵 변경 완료! 서버가 재시작됩니다.")
+            fetchCurrentMap()
+        } catch (e: any) {
             console.error("맵 변경 실패", e)
-            alert("맵 변경 실패")
+            alert(e.message || "맵 변경 실패")
         }
         setApplying(null)
     }

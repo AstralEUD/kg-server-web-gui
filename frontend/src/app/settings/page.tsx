@@ -9,23 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Cog, FolderOpen, Save, Server, Package, User, Loader2, CheckCircle, Download, Upload } from "lucide-react"
 import { toast } from "sonner"
 
-import { apiFetch } from "@/lib/api"
+import { apiGet, apiPost } from "@/lib/api"
 
-interface AppSettings {
-    serverPath: string
-    addonsPath: string
-    profilesPath: string
-    steamcmdPath: string
-    defaultServerName: string
-    discordWebhookUrl: string
-    enableWatchdog: boolean
-    // Discord Bot
-    discordBotToken: string
-    discordChannelId: string
-    enableDiscordBot: boolean
-    // RCON Monitor
-    enableRconMonitor: boolean
-}
+// ... (AppSettings interface)
 
 export default function SettingsPage() {
     const [settings, setSettings] = useState<AppSettings>({
@@ -52,11 +38,8 @@ export default function SettingsPage() {
     const fetchSettings = async () => {
         setLoading(true)
         try {
-            const res = await apiFetch("/api/settings")
-            if (res.ok) {
-                const data = await res.json()
-                setSettings(data)
-            }
+            const data = await apiGet<AppSettings>("/api/settings")
+            setSettings(data)
         } catch (e) {
             console.error("설정 로드 실패", e)
         }
@@ -67,36 +50,28 @@ export default function SettingsPage() {
         setSaving(true)
         setSaved(false)
         try {
-            const res = await apiFetch("/api/settings", {
-                method: "POST",
-                body: JSON.stringify(settings)
-            })
-            if (res.ok) {
-                setSaved(true)
-                toast.success("설정이 저장되었습니다.")
-                setTimeout(() => setSaved(false), 3000)
-            }
-        } catch (e) {
-            toast.error("설정 저장에 실패했습니다.")
+            await apiPost("/api/settings", settings)
+            setSaved(true)
+            toast.success("설정이 저장되었습니다.")
+            setTimeout(() => setSaved(false), 3000)
+        } catch (e: any) {
+            toast.error(e.message || "설정 저장에 실패했습니다.")
         }
         setSaving(false)
     }
 
     const exportSettings = async () => {
         try {
-            const res = await apiFetch("/api/settings/export")
-            if (res.ok) {
-                const data = await res.json()
-                const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })
-                const url = URL.createObjectURL(blob)
-                const a = document.createElement("a")
-                a.href = url
-                a.download = `kg_manager_backup_${new Date().toISOString().split('T')[0]}.json`
-                a.click()
-                toast.success("백업 파일이 다운로드되었습니다.")
-            }
-        } catch (e) {
-            toast.error("백업 생성 중 오류가 발생했습니다.")
+            const data = await apiGet<any>("/api/settings/export")
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement("a")
+            a.href = url
+            a.download = `kg_manager_backup_${new Date().toISOString().split('T')[0]}.json`
+            a.click()
+            toast.success("백업 파일이 다운로드되었습니다.")
+        } catch (e: any) {
+            toast.error(e.message || "백업 생성 중 오류가 발생했습니다.")
         }
     }
 

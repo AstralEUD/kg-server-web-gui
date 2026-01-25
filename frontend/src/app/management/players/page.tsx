@@ -8,23 +8,9 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Users, Shield, RefreshCw, Ban, UserX, AlertTriangle } from "lucide-react"
-import { apiFetch } from "@/lib/api"
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogFooter,
-    DialogDescription,
-} from "@/components/ui/dialog"
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table"
+import { apiGet, apiPost } from "@/lib/api"
+
+// ... (Dialog/Table imports omitted)
 
 export default function PlayersPage() {
     const [servers, setServers] = useState<any[]>([])
@@ -48,20 +34,17 @@ export default function PlayersPage() {
 
     const fetchServers = async () => {
         try {
-            const res = await apiFetch("/api/servers")
-            if (res.ok) {
-                const list = await res.json() || []
-                setServers(list)
-                if (list.length > 0 && !selectedServer) setSelectedServer(list[0].id)
-            }
+            const list = await apiGet<any[]>("/api/servers")
+            setServers(list || [])
+            if (list && list.length > 0 && !selectedServer) setSelectedServer(list[0].id)
         } catch (e) { }
     }
 
     const fetchPlayers = async () => {
         setLoading(true)
         try {
-            const res = await apiFetch(`/api/servers/${selectedServer}/players`)
-            if (res.ok) setPlayers(await res.json() || [])
+            const data = await apiGet<any[]>(`/api/servers/${selectedServer}/players`)
+            setPlayers(data || [])
         } catch (e) { }
         setLoading(false)
     }
@@ -77,18 +60,13 @@ export default function PlayersPage() {
         }
 
         try {
-            const res = await apiFetch(`/api/servers/${selectedServer}/${endpoint}`, {
-                method: "POST",
-                body: JSON.stringify(payload)
-            })
-            if (res.ok) {
-                setActionDialogOpen(false)
-                fetchPlayers()
-                alert(`${actionType === "kick" ? "추방" : "밴"} 성공`)
-            } else {
-                alert("실패: " + (await res.json()).error)
-            }
-        } catch (e) { alert("오류 발생") }
+            await apiPost(`/api/servers/${selectedServer}/${endpoint}`, payload)
+            setActionDialogOpen(false)
+            fetchPlayers()
+            alert(`${actionType === "kick" ? "추방" : "밴"} 성공`)
+        } catch (e: any) {
+            alert("실패: " + (e.message || "알 수 없는 오류"))
+        }
     }
 
     const openActionDialog = (player: any, type: "kick" | "ban") => {

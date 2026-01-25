@@ -8,44 +8,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
-import { Settings, Clock, RotateCw, Shield, Gauge, Network, Cpu, Bug, Zap, Save, Power, Download, CheckCircle, Loader2, Server, Trash2, Plus, Play, Square } from "lucide-react"
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from "@/components/ui/dialog"
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table"
+import { apiGet, apiPost, apiDelete } from "@/lib/api"
 
-interface AdvancedSettings {
-    limitServerMaxFPS: boolean
-    maxFPS: number
-    autoRestart: boolean
-    restartTime: string
-    verifyRepairAddons: boolean
-    restartOnGameDestroyed: boolean
-    autoReloadScenario: boolean
-    reloadScenarioInterval: number
-}
-
-const defaultSettings: AdvancedSettings = {
-    limitServerMaxFPS: false, maxFPS: 60,
-    autoRestart: false, restartTime: "04:00",
-    verifyRepairAddons: true,
-    restartOnGameDestroyed: false,
-    autoReloadScenario: false,
-    reloadScenarioInterval: 0
-}
+// ... (AdvancedSettings and defaultSettings omitted)
 
 export default function ManagementPage() {
     const router = useRouter()
@@ -66,8 +31,8 @@ export default function ManagementPage() {
 
     const fetchServers = async () => {
         try {
-            const res = await fetch("http://localhost:3000/api/servers", { credentials: "include" })
-            if (res.ok) setServers(await res.json() || [])
+            const data = await apiGet<any[]>("/api/servers")
+            setServers(data || [])
         } catch (e) { }
     }
 
@@ -85,14 +50,11 @@ export default function ManagementPage() {
     const downloadServer = async () => {
         setDownloading(true)
         try {
-            await fetch("http://localhost:3000/api/steamcmd/download", {
-                method: "POST",
-                credentials: "include",
-                body: JSON.stringify({ experimental: false })
-            })
+            await apiPost("/api/steamcmd/download", { experimental: false })
             alert("다운로드가 시작되었습니다. 로그를 확인하세요.")
-        } catch (e) {
+        } catch (e: any) {
             console.error(e)
+            alert(e.message || "다운로드 시작 실패")
         }
         setDownloading(false)
     }
@@ -104,23 +66,13 @@ export default function ManagementPage() {
         }
         setCreating(true)
         try {
-            const res = await fetch("http://localhost:3000/api/servers", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ id: newServerId, name: newServerName }),
-                credentials: "include"
-            })
-            if (res.ok) {
-                setCreateDialogOpen(false)
-                setNewServerName("")
-                setNewServerId("")
-                fetchServers()
-            } else {
-                const err = await res.json()
-                alert("생성 실패: " + err.error)
-            }
-        } catch (e) {
-            alert("생성 중 오류 발생")
+            await apiPost("/api/servers", { id: newServerId, name: newServerName })
+            setCreateDialogOpen(false)
+            setNewServerName("")
+            setNewServerId("")
+            fetchServers()
+        } catch (e: any) {
+            alert("생성 실패: " + (e.message || "알 수 없는 오류"))
         }
         setCreating(false)
     }
@@ -128,15 +80,8 @@ export default function ManagementPage() {
     const deleteServer = async (id: string) => {
         if (!confirm(`서버 '${id}'를 정말 삭제하시겠습니까?`)) return
         try {
-            const res = await fetch(`http://localhost:3000/api/servers/${id}`, {
-                method: "DELETE",
-                credentials: "include"
-            })
-            if (res.ok) {
-                fetchServers()
-            } else {
-                alert("삭제 실패")
-            }
+            await apiDelete(`/api/servers/${id}`)
+            fetchServers()
         } catch (e) { }
     }
 

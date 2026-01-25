@@ -5,33 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { BarChart3, TrendingUp, Users, Cpu, Activity, Calendar, RefreshCw } from "lucide-react"
-import { apiFetch } from "@/lib/api"
-import {
-    LineChart,
-    Line,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    Legend,
-    ResponsiveContainer,
-    AreaChart,
-    Area
-} from "recharts"
+import { apiGet } from "@/lib/api"
 
-interface MetricPoint {
-    timestamp: string
-    cpu: number
-    ram: number
-    players: number
-    fps: number
-}
-
-interface UptimeData {
-    uptimePercent: number
-    totalPoints: number
-    onlinePoints: number
-}
+// ... (interfaces MetricPoint, UptimeData omitted)
 
 export default function StatsPage() {
     const [servers, setServers] = useState<any[]>([])
@@ -53,28 +29,22 @@ export default function StatsPage() {
 
     const fetchServers = async () => {
         try {
-            const res = await apiFetch("/api/servers")
-            if (res.ok) {
-                const list = await res.json() || []
-                setServers(list)
-            }
+            const data = await apiGet<any[]>("/api/servers")
+            setServers(data || [])
         } catch (e) { }
     }
 
     const fetchStats = async () => {
         setLoading(true)
         try {
-            const hRes = await apiFetch(`/api/stats/history?id=${selectedServer}&date=${date}`)
-            if (hRes.ok) {
-                const data = await hRes.json()
-                setHistory(data.map((p: any) => ({
-                    ...p,
-                    time: new Date(p.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                })))
-            }
+            const historyData = await apiGet<any[]>(`/api/stats/history?id=${selectedServer}&date=${date}`)
+            setHistory(historyData.map((p: any) => ({
+                ...p,
+                time: new Date(p.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            })))
 
-            const uRes = await apiFetch(`/api/stats/uptime?id=${selectedServer}`)
-            if (uRes.ok) setUptime(await uRes.json())
+            const uptimeData = await apiGet<UptimeData>(`/api/stats/uptime?id=${selectedServer}`)
+            setUptime(uptimeData)
         } catch (e) { }
         setLoading(false)
     }

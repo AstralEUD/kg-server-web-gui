@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Lock, Loader2, AlertCircle, CheckCircle } from "lucide-react"
 
-import { apiFetch } from "@/lib/api"
+import { apiPost } from "@/lib/api"
 
 export default function PasswordPage() {
     const router = useRouter()
@@ -37,18 +37,7 @@ export default function PasswordPage() {
         setLoading(true)
 
         try {
-            const res = await apiFetch("/api/auth/password", {
-                method: "POST",
-                body: JSON.stringify({ oldPassword, newPassword }),
-            })
-
-            const data = await res.json()
-
-            if (!res.ok) {
-                setError(data.error || "비밀번호 변경 실패")
-                setLoading(false)
-                return
-            }
+            await apiPost("/api/auth/password", { oldPassword, newPassword })
 
             setSuccess(true)
             setOldPassword("")
@@ -58,8 +47,8 @@ export default function PasswordPage() {
             setTimeout(() => {
                 router.push("/")
             }, 2000)
-        } catch (e) {
-            setError("서버 연결 오류")
+        } catch (e: any) {
+            setError(e.message || "비밀번호 변경 실패")
         }
         setLoading(false)
     }

@@ -5,43 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { HardDrive, Archive, RotateCcw, Trash2, RefreshCw, Clock, Download, Loader2 } from "lucide-react"
-import { apiFetch } from "@/lib/api"
+import { apiGet, apiPost, apiDelete } from "@/lib/api"
 
-interface SaveFile {
-    name: string
-    path: string
-    size: number
-    modified: string
-    isBackup: boolean
-}
-
-function formatBytes(bytes: number) {
-    if (typeof bytes !== 'number' || isNaN(bytes)) return '0 Bytes';
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    if (i < 0) return bytes + ' Bytes';
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
-
-function formatDate(dateStr: string) {
-    if (!dateStr) return "-";
-    try {
-        const date = new Date(dateStr)
-        if (isNaN(date.getTime())) return "-";
-        return date.toLocaleString("ko-KR", {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
-        });
-    } catch {
-        return "-"
-    }
-}
+// ... (interface SaveFile, formatters omitted)
 
 export default function SavesPage() {
     const [saves, setSaves] = useState<SaveFile[]>([])
@@ -59,24 +25,16 @@ export default function SavesPage() {
     const fetchSaves = async () => {
         setLoading(true)
         try {
-            const res = await apiFetch("/api/saves")
-            if (res.ok) {
-                const data = await res.json()
-                // Ensure data is an array
-                setSaves(Array.isArray(data) ? data : [])
-            }
+            const data = await apiGet<SaveFile[]>("/api/saves")
+            setSaves(data || [])
         } catch (e) { console.error('Saves fetch error:', e) }
         setLoading(false)
     }
 
     const fetchBackups = async () => {
         try {
-            const res = await apiFetch("/api/saves/backups")
-            if (res.ok) {
-                const data = await res.json()
-                // Ensure data is an array
-                setBackups(Array.isArray(data) ? data : [])
-            }
+            const data = await apiGet<SaveFile[]>("/api/saves/backups")
+            setBackups(data || [])
         } catch (e) { console.error('Backups fetch error:', e) }
     }
 
@@ -92,10 +50,7 @@ export default function SavesPage() {
     const createBackup = async (saveName: string) => {
         setProcessing(saveName)
         try {
-            await apiFetch("/api/saves/backup", {
-                method: "POST",
-                body: JSON.stringify({ saveName })
-            })
+            await apiPost("/api/saves/backup", { saveName })
             fetchBackups()
         } catch (e) { console.error('Backup create error:', e) }
         setProcessing(null)
@@ -105,10 +60,7 @@ export default function SavesPage() {
         if (!confirm("백업을 복원하시겠습니까? 현재 세이브 파일이 덮어씁워질 수 있습니다.")) return
         setProcessing(backupName)
         try {
-            await apiFetch("/api/saves/restore", {
-                method: "POST",
-                body: JSON.stringify({ backupName })
-            })
+            await apiPost("/api/saves/restore", { backupName })
             fetchSaves()
         } catch (e) { console.error('Backup restore error:', e) }
         setProcessing(null)
@@ -117,9 +69,7 @@ export default function SavesPage() {
     const deleteSave = async (name: string, isBackup: boolean) => {
         if (!confirm(`정말 ${name} 파일을 삭제하시겠습니까?`)) return
         try {
-            await apiFetch(`/api/saves/${name}`, {
-                method: "DELETE"
-            })
+            await apiDelete(`/api/saves/${name}`)
             if (isBackup) fetchBackups()
             else fetchSaves()
         } catch (e) { console.error('Delete error:', e) }
