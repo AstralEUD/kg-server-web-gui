@@ -61,7 +61,6 @@ export default function ModsPage() {
 
     const [treeTarget, setTreeTarget] = useState<any>(null)
     const [treeLoading, setTreeLoading] = useState(false)
-    const [modCategories, setModCategories] = useState<Record<string, string>>({})
     const [filterCategory, setFilterCategory] = useState<string>("All")
 
     useEffect(() => {
@@ -675,7 +674,8 @@ export default function ModsPage() {
                                                             ) : (
                                                                 <span className="text-zinc-600 text-xs">-</span>
                                                             )}
-                                                            <span className="text-[10px] text-zinc-500">+{mod.dependencies.length - 5} more</span>
+                                                            {mod.dependencies.length > 5 && (
+                                                                <span className="text-[10px] text-zinc-500">+{mod.dependencies.length - 5} more</span>
                                                             )}
                                                             <Button
                                                                 variant="ghost"

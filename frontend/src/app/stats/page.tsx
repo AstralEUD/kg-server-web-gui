@@ -94,7 +94,7 @@ export default function StatsPage() {
                         <Input
                             type="date"
                             value={date}
-                            onChange={e => setDate(e.target.value)}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDate(e.target.value)}
                             className="bg-zinc-800 border-zinc-700 w-[160px]"
                         />
                         <Select value={selectedServer} onValueChange={setSelectedServer}>

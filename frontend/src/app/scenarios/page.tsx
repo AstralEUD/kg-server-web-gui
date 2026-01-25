@@ -165,11 +165,6 @@ export default function ScenariosPage() {
                             ) : (
                                 <div className="space-y-3">
                                     {scenarios.map(s => {
-                                        // Check if this scenario is the ONE in missionHeader
-                                        // missionHeader.mission usually looks like "{GUID}Missions/Name.conf"
-                                        // s.scenarioId is the GUID usually.
-                                        // But sometimes s.scenarioId is the full path?
-                                        // Let's check strict equality or contains.
                                         const isActive = Boolean(missionHeader.mission && missionHeader.mission.includes(s.scenarioId))
 
                                         return (
@@ -210,11 +205,11 @@ export default function ScenariosPage() {
                                                         </Button>
                                                     </div>
                                                 </div>
-                                                )
-                                    })}
                                             </div>
                                         )
-                                    }
+                                    })}
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 
