@@ -3,6 +3,7 @@ package handlers
 import (
 	"os/exec"
 
+	"github.com/astral/kg-server-web-gui/internal/api/response"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -35,16 +36,13 @@ func (h *SteamCMDHandler) DownloadServer(c *fiber.Ctx) error {
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{
-			"error":  err.Error(),
-			"output": string(output),
-		})
+		return c.Status(500).JSON(response.Error("SteamCMD error: " + err.Error() + "\nOutput: " + string(output)))
 	}
 
-	return c.JSON(fiber.Map{
+	return c.JSON(response.Success(fiber.Map{
 		"status": "success",
 		"output": string(output),
-	})
+	}))
 }
 
 // UpdateServer updates the server

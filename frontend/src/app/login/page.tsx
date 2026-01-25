@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Lock, User, Loader2, AlertCircle } from "lucide-react"
-import { apiFetch } from "@/lib/api"
+import { apiFetch, apiPost } from "@/lib/api"
 
 export default function LoginPage() {
     const router = useRouter()
@@ -22,26 +22,15 @@ export default function LoginPage() {
         setLoading(true)
 
         try {
-            const res = await apiFetch("/api/auth/login", {
-                method: "POST",
-                body: JSON.stringify({ username, password }),
-            })
-
-            const data = await res.json()
-
-            if (!res.ok) {
-                setError(data.error || "로그인 실패")
-                setLoading(false)
-                return
-            }
+            const data = await apiPost<any>("/api/auth/login", { username, password })
 
             // Fix #9: Don't store token in localStorage, rely on httpOnly cookie
             localStorage.setItem("username", data.username)
             localStorage.setItem("role", data.role)
 
             router.push("/")
-        } catch (e) {
-            setError("연결 오류 - 서버가 실행 중인지 확인하세요")
+        } catch (e: any) {
+            setError(e.message || "연결 오류 - 서버가 실행 중인지 확인하세요")
         }
         setLoading(false)
     }

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/astral/kg-server-web-gui/internal/agent"
+	"github.com/astral/kg-server-web-gui/internal/api/response"
 	"github.com/astral/kg-server-web-gui/internal/config"
 	"github.com/astral/kg-server-web-gui/internal/monitor"
 	"github.com/astral/kg-server-web-gui/internal/server"
@@ -45,17 +46,17 @@ func (h *ApiHandlers) GetStatus(c *fiber.Ctx) error {
 	// If monitor not found, attempt to verify if instance exists; if so, maybe it's just not created in map (shouldn't happen if Load works)
 	// But if we return error 500, frontend might break. Return stopped and 0 pid if not found but safe?
 	if proc == nil {
-		return c.JSON(fiber.Map{"running": false, "pid": 0, "error": "Instance monitor not found"})
+		return c.JSON(response.Error("Instance monitor not found"))
 	}
 
 	running, pid, err := proc.IsRunning()
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(500).JSON(response.Error(err.Error()))
 	}
-	return c.JSON(fiber.Map{
+	return c.JSON(response.Success(fiber.Map{
 		"running": running,
 		"pid":     pid,
-	})
+	}))
 }
 
 // GetResources returns the server resource usage history and health
@@ -81,7 +82,7 @@ func (h *ApiHandlers) GetResources(c *fiber.Ctx) error {
 	}
 
 	// Create a map merging both
-	response := fiber.Map{
+	resMap := fiber.Map{
 		"history":  history,
 		"health":   health,
 		"watchdog": h.Watchdog.IsEnabled(),
@@ -89,25 +90,25 @@ func (h *ApiHandlers) GetResources(c *fiber.Ctx) error {
 
 	// Flatten SystemStats into response for backward compatibility
 	if stats != nil {
-		response["cpuPercent"] = stats.CPUPercent
-		response["memoryUsed"] = stats.MemoryUsed
-		response["memoryTotal"] = stats.MemoryTotal
-		response["memoryPercent"] = stats.MemoryPercent
-		response["diskUsed"] = stats.DiskUsed
-		response["diskTotal"] = stats.DiskTotal
-		response["diskPercent"] = stats.DiskPercent
-		response["networkBytesIn"] = stats.NetworkBytesIn
-		response["networkBytesOut"] = stats.NetworkBytesOut
+		resMap["cpuPercent"] = stats.CPUPercent
+		resMap["memoryUsed"] = stats.MemoryUsed
+		resMap["memoryTotal"] = stats.MemoryTotal
+		resMap["memoryPercent"] = stats.MemoryPercent
+		resMap["diskUsed"] = stats.DiskUsed
+		resMap["diskTotal"] = stats.DiskTotal
+		resMap["diskPercent"] = stats.DiskPercent
+		resMap["networkBytesIn"] = stats.NetworkBytesIn
+		resMap["networkBytesOut"] = stats.NetworkBytesOut
 	}
 
-	return c.JSON(response)
+	return c.JSON(response.Success(resMap))
 }
 
 // SendRcon sends an RCON command to the server instance
 func (h *ApiHandlers) SendRcon(c *fiber.Ctx) error {
 	id := c.Params("id")
 	if id == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "ID required"})
+		return c.Status(400).JSON(response.Error("ID required"))
 	}
 
 	var req struct {
@@ -115,24 +116,24 @@ func (h *ApiHandlers) SendRcon(c *fiber.Ctx) error {
 	}
 
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+		return c.Status(400).JSON(response.Error("Invalid request body"))
 	}
 
 	resp, err := h.Manager.SendRconCommand(id, req.Command)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(500).JSON(response.Error(err.Error()))
 	}
 
 	h.recordCommand(req.Command)
 
-	return c.JSON(fiber.Map{
+	return c.JSON(response.Success(fiber.Map{
 		"response": resp,
-	})
+	}))
 }
 
 // GetCrashes returns the list of detected crash events
 func (h *ApiHandlers) GetCrashes(c *fiber.Ctx) error {
-	return c.JSON(h.Watchdog.GetCrashes())
+	return c.JSON(response.Success(h.Watchdog.GetCrashes()))
 }
 
 // GetCommandHistory returns the recent RCON command history
@@ -140,11 +141,11 @@ func (h *ApiHandlers) GetCommandHistory(c *fiber.Ctx) error {
 	path := filepath.Join(h.Manager.GetDataPath(), "command_history.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return c.JSON([]string{})
+		return c.JSON(response.Success([]string{}))
 	}
 	var history []string
 	json.Unmarshal(data, &history)
-	return c.JSON(history)
+	return c.JSON(response.Success(history))
 }
 
 func (h *ApiHandlers) recordCommand(cmd string) {

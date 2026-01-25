@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { Activity, Cpu, CircuitBoard, Wifi, Users } from 'lucide-react';
-import { apiFetch } from "@/lib/api"
+import { apiGet } from "@/lib/api"
 
 interface ResourceMonitorProps {
     serverId?: string
@@ -14,22 +14,21 @@ export default function ResourceMonitor({ serverId = "default" }: ResourceMonito
     const fetchResources = async () => {
         try {
             // Parallel fetch for resources and metrics
-            const [resResources, resMetrics] = await Promise.all([
-                apiFetch(`/api/status/resources?id=${serverId}`),
-                apiFetch(`/api/servers/${serverId}/metrics`)
+            // Use specific types or any for now
+            const [json, metrics] = await Promise.all([
+                apiGet<any>(`/api/status/resources?id=${serverId}`).catch(() => null),
+                apiGet<any>(`/api/servers/${serverId}/metrics`).catch(() => ({}))
             ]);
 
             let fps = 0;
             let players = 0;
 
-            if (resMetrics.ok) {
-                const metrics = await resMetrics.json();
+            if (metrics) {
                 fps = metrics.fps || 0;
                 players = metrics.playerCount || 0;
             }
 
-            if (resResources.ok) {
-                const json = await resResources.json();
+            if (json) {
                 // json: { history: [{time, cpu, memoryMb}], health: string, watchdog: bool }
 
                 const history = (json.history || []).map((h: any) => ({

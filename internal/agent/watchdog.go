@@ -38,6 +38,7 @@ type WatchedInstance struct {
 	Process      *ProcessMonitor
 	RestartCount int
 	LastRestart  time.Time
+	Active       bool // If false, we expect the server to be stopped
 }
 
 func NewWatchdog(discord *DiscordClient, dataPath string) *Watchdog {
@@ -101,6 +102,28 @@ func (w *Watchdog) RegisterInstance(id string, serverPath string, args []string,
 		ServerPath: serverPath,
 		Args:       args,
 		Process:    proc,
+		Active:     true,
+	}
+}
+
+// PauseMonitoring temporarily disables restart for a specific instance (e.g. manual stop)
+func (w *Watchdog) PauseMonitoring(id string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if inst, ok := w.instances[id]; ok {
+		inst.Active = false
+		logs.GlobalLogs.Info(fmt.Sprintf("Watchdog paused for instance: %s", id))
+	}
+}
+
+// ResumeMonitoring re-enables restart for a specific instance
+func (w *Watchdog) ResumeMonitoring(id string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if inst, ok := w.instances[id]; ok {
+		inst.Active = true
+		inst.RestartCount = 0 // Reset count on manual start
+		logs.GlobalLogs.Info(fmt.Sprintf("Watchdog resumed for instance: %s", id))
 	}
 }
 
@@ -148,6 +171,11 @@ func (w *Watchdog) checkInstance(inst *WatchedInstance) {
 	running, _, err := inst.Process.IsRunning()
 	if err != nil {
 		logs.GlobalLogs.Error(fmt.Sprintf("Watchdog check failed for %s: %v", inst.ID, err))
+		return
+	}
+
+	// If manual stop, don't restart
+	if !inst.Active {
 		return
 	}
 

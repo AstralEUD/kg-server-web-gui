@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"github.com/astral/kg-server-web-gui/internal/api/response"
 	"github.com/astral/kg-server-web-gui/internal/saves"
 	"github.com/gofiber/fiber/v2"
 )
@@ -16,17 +17,17 @@ func NewSavesHandler(sm *saves.SaveManager) *SavesHandler {
 func (h *SavesHandler) ListSaves(c *fiber.Ctx) error {
 	list, err := h.manager.ListSaves()
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(500).JSON(response.Error(err.Error()))
 	}
-	return c.JSON(list)
+	return c.JSON(response.Success(list))
 }
 
 func (h *SavesHandler) ListBackups(c *fiber.Ctx) error {
 	list, err := h.manager.ListBackups()
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(500).JSON(response.Error(err.Error()))
 	}
-	return c.JSON(list)
+	return c.JSON(response.Success(list))
 }
 
 func (h *SavesHandler) CreateBackup(c *fiber.Ctx) error {
@@ -34,15 +35,15 @@ func (h *SavesHandler) CreateBackup(c *fiber.Ctx) error {
 		SaveName string `json:"saveName"`
 	}
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(400).JSON(response.Error(err.Error()))
 	}
 
 	path, err := h.manager.CreateBackup(req.SaveName)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(500).JSON(response.Error(err.Error()))
 	}
 
-	return c.JSON(fiber.Map{"backupPath": path})
+	return c.JSON(response.Success(fiber.Map{"backupPath": path}))
 }
 
 func (h *SavesHandler) RestoreBackup(c *fiber.Ctx) error {
@@ -50,14 +51,14 @@ func (h *SavesHandler) RestoreBackup(c *fiber.Ctx) error {
 		BackupName string `json:"backupName"`
 	}
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(400).JSON(response.Error(err.Error()))
 	}
 
 	if err := h.manager.RestoreBackup(req.BackupName); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(500).JSON(response.Error(err.Error()))
 	}
 
-	return c.JSON(fiber.Map{"status": "restored"})
+	return c.JSON(response.Success(fiber.Map{"status": "restored"}))
 }
 
 func (h *SavesHandler) DeleteSave(c *fiber.Ctx) error {
@@ -65,8 +66,8 @@ func (h *SavesHandler) DeleteSave(c *fiber.Ctx) error {
 	isBackup := c.Query("backup") == "true"
 
 	if err := h.manager.DeleteSave(name, isBackup); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(500).JSON(response.Error(err.Error()))
 	}
 
-	return c.JSON(fiber.Map{"status": "deleted"})
+	return c.JSON(response.Success(fiber.Map{"status": "deleted"}))
 }

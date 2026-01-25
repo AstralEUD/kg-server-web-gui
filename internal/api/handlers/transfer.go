@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/astral/kg-server-web-gui/internal/api/response"
 	"github.com/astral/kg-server-web-gui/internal/settings"
 	"github.com/gofiber/fiber/v2"
 )
@@ -44,14 +45,14 @@ func (h *ApiHandlers) ExportSettings(c *fiber.Ctx) error {
 		backup.Jobs = jobs
 	}
 
-	return c.JSON(backup)
+	return c.JSON(response.Success(backup))
 }
 
 // ImportSettings imports application configuration
 func (h *ApiHandlers) ImportSettings(c *fiber.Ctx) error {
 	var backup BackupData
 	if err := c.BodyParser(&backup); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid backup data"})
+		return c.Status(400).JSON(response.Error("Invalid backup data"))
 	}
 
 	dataPath := h.Manager.GetDataPath()
@@ -75,7 +76,7 @@ func (h *ApiHandlers) ImportSettings(c *fiber.Ctx) error {
 		os.WriteFile(jobsPath, data, 0644)
 	}
 
-	return c.JSON(fiber.Map{"status": "success", "message": "Settings imported successfully. Restart may be required."})
+	return c.JSON(response.Success(fiber.Map{"status": "success", "message": "Settings imported successfully. Restart may be required."}))
 }
 
 // ValidateConfig validates a server.json content
@@ -84,29 +85,29 @@ func (h *ApiHandlers) ValidateConfig(c *fiber.Ctx) error {
 		Content string `json:"content"`
 	}
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(400).JSON(response.Error(err.Error()))
 	}
 
 	var cfg interface{}
 	if err := json.Unmarshal([]byte(req.Content), &cfg); err != nil {
-		return c.Status(400).JSON(fiber.Map{"valid": false, "error": err.Error()})
+		return c.Status(400).JSON(response.Success(fiber.Map{"valid": false, "error": err.Error()}))
 	}
 
 	// Basic check for required fields in Arma Reforger server.json
 	rawMap, ok := cfg.(map[string]interface{})
 	if !ok {
-		return c.JSON(fiber.Map{"valid": false, "error": "Not a JSON object"})
+		return c.JSON(response.Success(fiber.Map{"valid": false, "error": "Not a JSON object"}))
 	}
 
 	// Check game section
 	game, ok := rawMap["game"].(map[string]interface{})
 	if !ok {
-		return c.JSON(fiber.Map{"valid": false, "error": "'game' section missing"})
+		return c.JSON(response.Success(fiber.Map{"valid": false, "error": "'game' section missing"}))
 	}
 
 	if _, exists := game["scenarioId"]; !exists {
-		return c.JSON(fiber.Map{"valid": true, "warning": "scenarioId is missing, but JSON is valid"})
+		return c.JSON(response.Success(fiber.Map{"valid": true, "warning": "scenarioId is missing, but JSON is valid"}))
 	}
 
-	return c.JSON(fiber.Map{"valid": true})
+	return c.JSON(response.Success(fiber.Map{"valid": true}))
 }

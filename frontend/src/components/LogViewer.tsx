@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Trash2, Terminal, Send, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { apiFetch } from "@/lib/api"
+import { apiGet, apiPost, apiDelete } from "@/lib/api"
 
 interface LogViewerProps {
     serverId?: string
@@ -21,16 +21,10 @@ export default function LogViewer({ serverId = "default" }: LogViewerProps) {
 
     const fetchLogs = async () => {
         try {
-            const res = await apiFetch("/api/logs");
-            if (res.ok) {
-                const data = await res.json();
-                setLogs(prev => {
-                    // This is simple replacement, ideally we merge or keep local RCON logs?
-                    // For now, let's just show server logs.
-                    // If we want to show RCON commands persistence, we need a better log store.
-                    return data.map((l: any) => `[${new Date(l.timestamp).toLocaleTimeString()}] [${l.level}] ${l.message}`);
-                });
-            }
+            const data = await apiGet<any[]>("/api/logs");
+            setLogs(prev => {
+                return data.map((l: any) => `[${new Date(l.timestamp).toLocaleTimeString()}] [${l.level}] ${l.message}`);
+            });
         } catch (e) {
             console.error("Failed to fetch logs", e);
         }
@@ -38,7 +32,7 @@ export default function LogViewer({ serverId = "default" }: LogViewerProps) {
 
     const clearLogs = async () => {
         try {
-            await apiFetch("/api/logs", { method: "DELETE" });
+            await apiDelete("/api/logs");
             setLogs([]);
         } catch (e) {
             console.error(e);
@@ -57,26 +51,16 @@ export default function LogViewer({ serverId = "default" }: LogViewerProps) {
         setLogs(prev => [...prev, `> ${cmd}`]);
 
         try {
-            const res = await apiFetch(`/api/servers/${serverId}/rcon`, {
-                method: "POST",
-                body: JSON.stringify({ command: cmd }),
-            });
+            const data = await apiPost<any>(`/api/servers/${serverId}/rcon`, { command: cmd });
 
-            if (res.ok) {
-                fetchCommandHistory();
-                const data = await res.json();
-                // Add response to logs
-                if (data.response) {
-                    setLogs(prev => [...prev, data.response]);
-                } else {
-                    setLogs(prev => [...prev, "[RCON] Command sent."]);
-                }
+            fetchCommandHistory();
+            if (data.response) {
+                setLogs(prev => [...prev, data.response]);
             } else {
-                const err = await res.json();
-                setLogs(prev => [...prev, `[Error] ${err.error}`]);
+                setLogs(prev => [...prev, "[RCON] Command sent."]);
             }
         } catch (e) {
-            setLogs(prev => [...prev, "[Error] Failed to send command."]);
+            setLogs(prev => [...prev, `[Error] Failed to send command.`]);
         }
         setSending(false);
         setHistoryIndex(-1);
@@ -107,8 +91,8 @@ export default function LogViewer({ serverId = "default" }: LogViewerProps) {
 
     const fetchCommandHistory = async () => {
         try {
-            const res = await apiFetch("/api/commands/history");
-            if (res.ok) setHistory(await res.json());
+            const data = await apiGet<string[]>("/api/commands/history");
+            setHistory(data);
         } catch (e) { }
     };
 

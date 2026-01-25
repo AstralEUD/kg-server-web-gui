@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/astral/kg-server-web-gui/internal/agent"
+	"github.com/astral/kg-server-web-gui/internal/api/response"
 	"github.com/astral/kg-server-web-gui/internal/workshop"
 	"github.com/gofiber/fiber/v2"
 )
@@ -29,7 +30,7 @@ func (h *ApiHandlers) ListScenarios(c *fiber.Ctx) error {
 
 	scenarios, err := agent.ListScenarios(serverPath, addonDirs)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error(), "scenarios": scenarios})
+		return c.Status(500).JSON(response.Error(err.Error()))
 	}
 
 	// Enrichment: Fetch workshop images in parallel
@@ -87,5 +88,5 @@ func (h *ApiHandlers) ListScenarios(c *fiber.Ctx) error {
 		// Proceed with partial results if too slow
 	}
 
-	return c.JSON(results)
+	return c.JSON(response.Success(results))
 }

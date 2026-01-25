@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"github.com/astral/kg-server-web-gui/internal/api/response"
 	"github.com/astral/kg-server-web-gui/internal/config"
 	"github.com/astral/kg-server-web-gui/internal/workshop"
 	"github.com/gofiber/fiber/v2"
@@ -12,10 +13,10 @@ func (h *ApiHandlers) GetConfig(c *fiber.Ctx) error {
 
 	data, err := h.Config.ReadConfig(path)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(500).JSON(response.Error(err.Error()))
 	}
 
-	return c.JSON(data)
+	return c.JSON(response.Success(data))
 }
 
 // SaveConfig writes server.json
@@ -28,10 +29,10 @@ func (h *ApiHandlers) SaveConfig(c *fiber.Ctx) error {
 	}
 
 	if err := h.Config.WriteConfig(path, &data); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(500).JSON(response.Error(err.Error()))
 	}
 
-	return c.JSON(fiber.Map{"status": "saved"})
+	return c.JSON(response.Success(fiber.Map{"status": "saved"}))
 }
 
 // GetConfigRaw reads server.json as text
@@ -40,10 +41,10 @@ func (h *ApiHandlers) GetConfigRaw(c *fiber.Ctx) error {
 
 	data, err := h.Config.ReadConfigRaw(path)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(500).JSON(response.Error(err.Error()))
 	}
 
-	return c.JSON(fiber.Map{"content": data})
+	return c.JSON(response.Success(fiber.Map{"content": data}))
 }
 
 // SaveConfigRaw writes server.json as text
@@ -58,10 +59,10 @@ func (h *ApiHandlers) SaveConfigRaw(c *fiber.Ctx) error {
 	}
 
 	if err := h.Config.WriteConfigRaw(path, req.Content); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(500).JSON(response.Error(err.Error()))
 	}
 
-	return c.JSON(fiber.Map{"status": "saved"})
+	return c.JSON(response.Success(fiber.Map{"status": "saved"}))
 }
 
 // EnrichModsRequest is the request body for EnrichMods
@@ -94,7 +95,7 @@ type EnrichedScenario struct {
 func (h *ApiHandlers) EnrichMods(c *fiber.Ctx) error {
 	var req EnrichModsRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(400).JSON(response.Error(err.Error()))
 	}
 
 	resp := EnrichModsResponse{
@@ -132,5 +133,5 @@ func (h *ApiHandlers) EnrichMods(c *fiber.Ctx) error {
 		resp.Mods = append(resp.Mods, enriched)
 	}
 
-	return c.JSON(resp)
+	return c.JSON(response.Success(resp))
 }

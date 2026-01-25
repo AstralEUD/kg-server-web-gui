@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"github.com/astral/kg-server-web-gui/internal/api/response"
 	"github.com/astral/kg-server-web-gui/internal/mapchange"
 	"github.com/gofiber/fiber/v2"
 )
@@ -19,52 +20,52 @@ func NewMapHandler(mapService *mapchange.MapChangeService) *MapHandler {
 
 // ListMappings returns all map slot mappings
 func (h *MapHandler) ListMappings(c *fiber.Ctx) error {
-	return c.JSON(h.mapService.ListMaps())
+	return c.JSON(response.Success(h.mapService.ListMaps()))
 }
 
 // AddMapping adds or updates a map mapping
 func (h *MapHandler) AddMapping(c *fiber.Ctx) error {
 	var mapping mapchange.MapMapping
 	if err := c.BodyParser(&mapping); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(400).JSON(response.Error(err.Error()))
 	}
 
 	if mapping.Slot <= 0 {
-		return c.Status(400).JSON(fiber.Map{"error": "슬롯 번호는 1 이상이어야 합니다"})
+		return c.Status(400).JSON(response.Error("슬롯 번호는 1 이상이어야 합니다"))
 	}
 	if mapping.ScenarioID == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "시나리오 ID는 필수입니다"})
+		return c.Status(400).JSON(response.Error("시나리오 ID는 필수입니다"))
 	}
 	if mapping.Name == "" {
 		mapping.Name = "Map " + string(rune('0'+mapping.Slot))
 	}
 
 	if err := h.mapService.GetMappingManager().Add(mapping); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(500).JSON(response.Error(err.Error()))
 	}
 
-	return c.Status(201).JSON(mapping)
+	return c.Status(201).JSON(response.Success(mapping))
 }
 
 // RemoveMapping removes a map mapping by slot
 func (h *MapHandler) RemoveMapping(c *fiber.Ctx) error {
 	slot, err := c.ParamsInt("slot")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "유효하지 않은 슬롯 번호"})
+		return c.Status(400).JSON(response.Error("유효하지 않은 슬롯 번호"))
 	}
 
 	if err := h.mapService.GetMappingManager().Remove(slot); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(500).JSON(response.Error(err.Error()))
 	}
 
-	return c.JSON(fiber.Map{"status": "삭제됨"})
+	return c.JSON(response.Success(fiber.Map{"status": "삭제됨"}))
 }
 
 // ApplyMap applies a map by slot number (changes scenarioId and restarts server)
 func (h *MapHandler) ApplyMap(c *fiber.Ctx) error {
 	slot, err := c.ParamsInt("slot")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "유효하지 않은 슬롯 번호"})
+		return c.Status(400).JSON(response.Error("유효하지 않은 슬롯 번호"))
 	}
 
 	// Get requester from session if available
@@ -81,16 +82,16 @@ func (h *MapHandler) ApplyMap(c *fiber.Ctx) error {
 	instanceID := c.Query("instance", "default")
 
 	if err := h.mapService.ChangeMapBySlot(instanceID, slot, requester); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(500).JSON(response.Error(err.Error()))
 	}
 
 	mapping := h.mapService.GetMappingManager().Get(slot)
-	return c.JSON(fiber.Map{
+	return c.JSON(response.Success(fiber.Map{
 		"status":  "맵 변경됨",
 		"slot":    slot,
 		"name":    mapping.Name,
 		"message": "서버가 재시작됩니다",
-	})
+	}))
 }
 
 // GetCurrentMap returns the current map for a server instance
@@ -99,7 +100,7 @@ func (h *MapHandler) GetCurrentMap(c *fiber.Ctx) error {
 
 	mapping, scenarioID, err := h.mapService.GetCurrentMap(instanceID)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(500).JSON(response.Error(err.Error()))
 	}
 
 	result := fiber.Map{
@@ -111,7 +112,7 @@ func (h *MapHandler) GetCurrentMap(c *fiber.Ctx) error {
 		result["name"] = mapping.Name
 	}
 
-	return c.JSON(result)
+	return c.JSON(response.Success(result))
 }
 
 // ApplyMapByScenario applies a map by direct scenario ID
@@ -122,11 +123,11 @@ func (h *MapHandler) ApplyMapByScenario(c *fiber.Ctx) error {
 		InstanceID string `json:"instanceId"`
 	}
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(400).JSON(response.Error(err.Error()))
 	}
 
 	if req.ScenarioID == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "시나리오 ID는 필수입니다"})
+		return c.Status(400).JSON(response.Error("시나리오 ID는 필수입니다"))
 	}
 	if req.Name == "" {
 		req.Name = "Custom Map"
@@ -145,12 +146,12 @@ func (h *MapHandler) ApplyMapByScenario(c *fiber.Ctx) error {
 	}
 
 	if err := h.mapService.ChangeMap(req.InstanceID, req.ScenarioID, req.Name, requester); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(500).JSON(response.Error(err.Error()))
 	}
 
-	return c.JSON(fiber.Map{
+	return c.JSON(response.Success(fiber.Map{
 		"status":     "맵 변경됨",
 		"scenarioId": req.ScenarioID,
 		"message":    "서버가 재시작됩니다",
-	})
+	}))
 }

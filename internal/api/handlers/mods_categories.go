@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/astral/kg-server-web-gui/internal/api/response"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -29,18 +30,18 @@ func (h *ModCategoryHandler) GetCategories(c *fiber.Ctx) error {
 
 	data, err := os.ReadFile(h.FilePath)
 	if os.IsNotExist(err) {
-		return c.JSON(make(ModCategories))
+		return c.JSON(response.Success(make(ModCategories)))
 	}
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(500).JSON(response.Error(err.Error()))
 	}
 
 	var categories ModCategories
 	if err := json.Unmarshal(data, &categories); err != nil {
-		return c.JSON(make(ModCategories))
+		return c.JSON(response.Success(make(ModCategories)))
 	}
 
-	return c.JSON(categories)
+	return c.JSON(response.Success(categories))
 }
 
 func (h *ModCategoryHandler) SetCategory(c *fiber.Ctx) error {
@@ -50,7 +51,7 @@ func (h *ModCategoryHandler) SetCategory(c *fiber.Ctx) error {
 	}
 
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid request"})
+		return c.Status(400).JSON(response.Error("Invalid request"))
 	}
 
 	h.mu.Lock()
@@ -73,12 +74,12 @@ func (h *ModCategoryHandler) SetCategory(c *fiber.Ctx) error {
 	// Write back
 	newData, err := json.MarshalIndent(categories, "", "  ")
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "Failed to serialize"})
+		return c.Status(500).JSON(response.Error("Failed to serialize"))
 	}
 
 	if err := os.WriteFile(h.FilePath, newData, 0644); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "Failed to save"})
+		return c.Status(500).JSON(response.Error("Failed to save"))
 	}
 
-	return c.JSON(categories)
+	return c.JSON(response.Success(categories))
 }

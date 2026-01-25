@@ -10,10 +10,14 @@
 - **`src/app/scenarios/page.tsx`**: 시나리오 목록 렌더링 중 ternary operator와 map 함수의 구문 불일치 해결.
 - **`src/components/LogViewer.tsx`**: 함수 내부 로직이 중괄호 오류로 분리되었던 문제 수정.
 
-### 2. 컴포넌트 복구
+### 2. 백엔드 빌드 오류 수정 (Backend Fixes)
+- **`internal/agent/scenarios.go`**: `undefined: name` 오류 수정 (이름 추출 로직 추가).
+- **`internal/metrics/manager.go`**: `latest.Memory` 관련 `undefined` 오류 수정 (`MemoryMB` 필드 사용 및 타입 캐스팅 적용).
+
+### 3. 컴포넌트 복구
 - **`src/components/ui/sheet.tsx`**: 유실되었던 `shadcn/ui`의 `Sheet` 컴포넌트를 표준 구현체로 재생성.
 
-### 3. 타입 안정성 확보
+### 4. 타입 안정성 확보
 - **`src/app/stats/page.tsx`**: `onChange` 핸들러의 이벤트(`e`) 파라미터에 명시적인 타입을 추가하여 TypeScript 빌드 오류 해결.
 
 ## 검증 결과

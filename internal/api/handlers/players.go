@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 
+	"github.com/astral/kg-server-web-gui/internal/api/response"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -17,17 +18,17 @@ func (h *ApiHandlers) GetPlayers(c *fiber.Ctx) error {
 	if err != nil {
 		// Log error but might return empty list if RCON is not ready
 		// But error 500 is safer to indicate failure
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(500).JSON(response.Error(err.Error()))
 	}
 
-	return c.JSON(players)
+	return c.JSON(response.Success(players))
 }
 
 // KickPlayer kicks a player from the server
 func (h *ApiHandlers) KickPlayer(c *fiber.Ctx) error {
 	id := c.Params("id")
 	if id == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "Server ID required"})
+		return c.Status(400).JSON(response.Error("Server ID required"))
 	}
 
 	var req struct {
@@ -35,7 +36,7 @@ func (h *ApiHandlers) KickPlayer(c *fiber.Ctx) error {
 		Reason string `json:"reason"`
 	}
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+		return c.Status(400).JSON(response.Error("Invalid request body"))
 	}
 
 	if req.Reason == "" {
@@ -43,17 +44,17 @@ func (h *ApiHandlers) KickPlayer(c *fiber.Ctx) error {
 	}
 
 	if err := h.Manager.KickPlayer(id, req.Index, req.Reason); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to kick: %v", err)})
+		return c.Status(500).JSON(response.Error(fmt.Sprintf("Failed to kick: %v", err)))
 	}
 
-	return c.JSON(fiber.Map{"status": "kicked", "index": req.Index})
+	return c.JSON(response.Success(fiber.Map{"status": "kicked", "index": req.Index}))
 }
 
 // BanPlayer bans a player from the server
 func (h *ApiHandlers) BanPlayer(c *fiber.Ctx) error {
 	id := c.Params("id")
 	if id == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "Server ID required"})
+		return c.Status(400).JSON(response.Error("Server ID required"))
 	}
 
 	var req struct {
@@ -62,19 +63,19 @@ func (h *ApiHandlers) BanPlayer(c *fiber.Ctx) error {
 		Duration   string `json:"duration,omitempty"` // Not used yet by backend method, but might be useful
 	}
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+		return c.Status(400).JSON(response.Error("Invalid request body"))
 	}
 
 	if req.Identifier == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "Identifier required (index, name, or uid)"})
+		return c.Status(400).JSON(response.Error("Identifier required (index, name, or uid)"))
 	}
 	if req.Reason == "" {
 		req.Reason = "Banned by admin"
 	}
 
 	if err := h.Manager.BanPlayer(id, req.Identifier, req.Reason); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to ban: %v", err)})
+		return c.Status(500).JSON(response.Error(fmt.Sprintf("Failed to ban: %v", err)))
 	}
 
-	return c.JSON(fiber.Map{"status": "banned", "identifier": req.Identifier})
+	return c.JSON(response.Success(fiber.Map{"status": "banned", "identifier": req.Identifier}))
 }

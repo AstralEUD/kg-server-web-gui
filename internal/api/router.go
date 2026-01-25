@@ -9,6 +9,7 @@ import (
 
 	"github.com/astral/kg-server-web-gui/internal/agent"
 	"github.com/astral/kg-server-web-gui/internal/api/handlers"
+	"github.com/astral/kg-server-web-gui/internal/api/response"
 	"github.com/astral/kg-server-web-gui/internal/auth"
 	"github.com/astral/kg-server-web-gui/internal/config"
 	"github.com/astral/kg-server-web-gui/internal/discord"
@@ -143,7 +144,7 @@ func SetupRoutes(app *fiber.App) {
 	// Public routes (no auth required)
 	api.Post("/auth/login", authHandler.Login)
 	api.Get("/health", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{"status": "ok"})
+		return c.JSON(response.Success(fiber.Map{"status": "ok"}))
 	})
 
 	// Apply auth middleware to all other API routes
@@ -162,17 +163,17 @@ func SetupRoutes(app *fiber.App) {
 
 	// Settings API
 	api.Get("/settings", func(c *fiber.Ctx) error {
-		return c.JSON(settingsMgr.Get())
+		return c.JSON(response.Success(settingsMgr.Get()))
 	})
 	api.Post("/settings", func(c *fiber.Ctx) error {
 		var s settings.AppSettings
 		if err := c.BodyParser(&s); err != nil {
-			return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(400).JSON(response.Error(err.Error()))
 		}
 		if err := settingsMgr.Update(&s); err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(500).JSON(response.Error(err.Error()))
 		}
-		return c.JSON(fiber.Map{"status": "saved"})
+		return c.JSON(response.Success(fiber.Map{"status": "saved"}))
 	})
 	api.Get("/settings/export", baseHandlers.ExportSettings)
 	api.Post("/settings/import", baseHandlers.ImportSettings)
@@ -180,40 +181,40 @@ func SetupRoutes(app *fiber.App) {
 
 	// Server Instances API (multi-server)
 	api.Get("/servers", func(c *fiber.Ctx) error {
-		return c.JSON(instanceMgr.List())
+		return c.JSON(response.Success(instanceMgr.List()))
 	})
 	api.Get("/servers/:id", func(c *fiber.Ctx) error {
 		inst := instanceMgr.Get(c.Params("id"))
 		if inst == nil {
-			return c.Status(404).JSON(fiber.Map{"error": "서버를 찾을 수 없습니다"})
+			return c.Status(404).JSON(response.Error("서버를 찾을 수 없습니다"))
 		}
-		return c.JSON(inst)
+		return c.JSON(response.Success(inst))
 	})
 	api.Post("/servers", func(c *fiber.Ctx) error {
 		var inst server.ServerInstance
 		if err := c.BodyParser(&inst); err != nil {
-			return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(400).JSON(response.Error(err.Error()))
 		}
 		if err := instanceMgr.Create(&inst); err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(500).JSON(response.Error(err.Error()))
 		}
-		return c.Status(201).JSON(inst)
+		return c.Status(201).JSON(response.Success(inst))
 	})
 	api.Put("/servers/:id", func(c *fiber.Ctx) error {
 		var updates server.ServerInstance
 		if err := c.BodyParser(&updates); err != nil {
-			return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(400).JSON(response.Error(err.Error()))
 		}
 		if err := instanceMgr.Update(c.Params("id"), &updates); err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(500).JSON(response.Error(err.Error()))
 		}
-		return c.JSON(fiber.Map{"status": "updated"})
+		return c.JSON(response.Success(fiber.Map{"status": "updated"}))
 	})
 	api.Delete("/servers/:id", func(c *fiber.Ctx) error {
 		if err := instanceMgr.Delete(c.Params("id")); err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(500).JSON(response.Error(err.Error()))
 		}
-		return c.JSON(fiber.Map{"status": "deleted"})
+		return c.JSON(response.Success(fiber.Map{"status": "deleted"}))
 	})
 	api.Post("/servers/:id/start", func(c *fiber.Ctx) error {
 		id := c.Params("id")
@@ -221,29 +222,29 @@ func SetupRoutes(app *fiber.App) {
 			Args []string `json:"args"`
 		}
 		if err := c.BodyParser(&req); err != nil {
-			return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(400).JSON(response.Error(err.Error()))
 		}
 
 		logs.GlobalLogs.Info(fmt.Sprintf("[%s] Starting with args: %v", id, req.Args))
 
 		if err := instanceMgr.Start(id, req.Args); err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(500).JSON(response.Error(err.Error()))
 		}
-		return c.JSON(fiber.Map{"status": "started"})
+		return c.JSON(response.Success(fiber.Map{"status": "started"}))
 	})
 	api.Post("/servers/:id/stop", func(c *fiber.Ctx) error {
 		if err := instanceMgr.Stop(c.Params("id")); err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(500).JSON(response.Error(err.Error()))
 		}
-		return c.JSON(fiber.Map{"status": "stopped"})
+		return c.JSON(response.Success(fiber.Map{"status": "stopped"}))
 	})
 	api.Post("/servers/:id/rcon", baseHandlers.SendRcon)
 	api.Get("/servers/:id/metrics", func(c *fiber.Ctx) error {
 		metrics, err := instanceMgr.GetServerMetrics(c.Params("id"))
 		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(500).JSON(response.Error(err.Error()))
 		}
-		return c.JSON(metrics)
+		return c.JSON(response.Success(metrics))
 	})
 	api.Get("/servers/:id/players", baseHandlers.GetPlayers)
 	api.Post("/servers/:id/kick", baseHandlers.KickPlayer)
@@ -262,17 +263,17 @@ func SetupRoutes(app *fiber.App) {
 
 		if err := instanceMgr.Start("default", req.Args); err != nil {
 			logs.GlobalLogs.Error("서버 시작 실패: " + err.Error())
-			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(500).JSON(response.Error(err.Error()))
 		}
-		return c.JSON(fiber.Map{"status": "started"})
+		return c.JSON(response.Success(fiber.Map{"status": "started"}))
 	})
 	api.Post("/server/stop", func(c *fiber.Ctx) error {
 		logs.GlobalLogs.Info("서버 중지 요청")
 		if err := instanceMgr.Stop("default"); err != nil {
 			logs.GlobalLogs.Error("서버 중지 실패: " + err.Error())
-			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(500).JSON(response.Error(err.Error()))
 		}
-		return c.JSON(fiber.Map{"status": "stopped"})
+		return c.JSON(response.Success(fiber.Map{"status": "stopped"}))
 	})
 	api.Post("/server/restart", func(c *fiber.Ctx) error {
 		logs.GlobalLogs.Info("서버 재시작 요청")
@@ -285,10 +286,10 @@ func SetupRoutes(app *fiber.App) {
 
 		if err := instanceMgr.Start("default", []string{}); err != nil {
 			logs.GlobalLogs.Error("서버 재시작 실패: " + err.Error())
-			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(500).JSON(response.Error(err.Error()))
 		}
 
-		return c.JSON(fiber.Map{"status": "restarted"})
+		return c.JSON(response.Success(fiber.Map{"status": "restarted"}))
 	})
 
 	// Config
@@ -361,62 +362,62 @@ func SetupRoutes(app *fiber.App) {
 		c.BodyParser(&req)
 
 		go steamcmdMgr.DownloadServer(req.Experimental)
-		return c.JSON(fiber.Map{"status": "다운로드 시작됨"})
+		return c.JSON(response.Success(fiber.Map{"status": "다운로드 시작됨"}))
 	})
 	api.Get("/steamcmd/status", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{
+		return c.JSON(response.Success(fiber.Map{
 			"running":           steamcmdMgr.IsRunning(),
 			"serverInstalled":   steamcmdMgr.CheckInstalled(),
 			"steamcmdInstalled": steamcmdMgr.SteamCMDInstalled(),
-		})
+		}))
 	})
 
 	// Presets
 	api.Get("/presets", func(c *fiber.Ctx) error {
-		return c.JSON(presetMgr.List())
+		return c.JSON(response.Success(presetMgr.List()))
 	})
 	api.Get("/presets/:id", func(c *fiber.Ctx) error {
 		p := presetMgr.Get(c.Params("id"))
 		if p == nil {
-			return c.Status(404).JSON(fiber.Map{"error": "프리셋을 찾을 수 없습니다"})
+			return c.Status(404).JSON(response.Error("프리셋을 찾을 수 없습니다"))
 		}
-		return c.JSON(p)
+		return c.JSON(response.Success(p))
 	})
 	api.Post("/presets", func(c *fiber.Ctx) error {
 		var p preset.Preset
 		if err := c.BodyParser(&p); err != nil {
-			return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(400).JSON(response.Error(err.Error()))
 		}
 		if err := presetMgr.Create(&p); err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(500).JSON(response.Error(err.Error()))
 		}
-		return c.Status(201).JSON(p)
+		return c.Status(201).JSON(response.Success(p))
 	})
 	api.Put("/presets/:id", func(c *fiber.Ctx) error {
 		var p preset.Preset
 		if err := c.BodyParser(&p); err != nil {
-			return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(400).JSON(response.Error(err.Error()))
 		}
 		if err := presetMgr.Update(c.Params("id"), &p); err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(500).JSON(response.Error(err.Error()))
 		}
-		return c.JSON(p)
+		return c.JSON(response.Success(p))
 	})
 	api.Delete("/presets/:id", func(c *fiber.Ctx) error {
 		if err := presetMgr.Delete(c.Params("id")); err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(500).JSON(response.Error(err.Error()))
 		}
-		return c.JSON(fiber.Map{"status": "삭제됨"})
+		return c.JSON(response.Success(fiber.Map{"status": "삭제됨"}))
 	})
 	api.Post("/presets/:id/apply", func(c *fiber.Ctx) error {
 		p := presetMgr.Get(c.Params("id"))
 		if p == nil {
-			return c.Status(404).JSON(fiber.Map{"error": "프리셋을 찾을 수 없습니다"})
+			return c.Status(404).JSON(response.Error("프리셋을 찾을 수 없습니다"))
 		}
 
 		// Fix #17: Check if Config is nil
 		if p.Config == nil {
-			return c.Status(400).JSON(fiber.Map{"error": "프리셋 설정이 비어있습니다"})
+			return c.Status(400).JSON(response.Error("프리셋 설정이 비어있습니다"))
 		}
 
 		// Apply preset config - convert map to ServerConfig
@@ -425,16 +426,16 @@ func SetupRoutes(app *fiber.App) {
 		// Marshal map to JSON, then unmarshal to ServerConfig
 		configBytes, err := json.Marshal(p.Config)
 		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "Failed to marshal config: " + err.Error()})
+			return c.Status(500).JSON(response.Error("Failed to marshal config: " + err.Error()))
 		}
 
 		var serverConfig config.ServerConfig
 		if err := json.Unmarshal(configBytes, &serverConfig); err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "Failed to parse config: " + err.Error()})
+			return c.Status(500).JSON(response.Error("Failed to parse config: " + err.Error()))
 		}
 
 		if err := cfg.WriteConfig(configPath, &serverConfig); err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(500).JSON(response.Error(err.Error()))
 		}
 
 		// Restore collection if present
@@ -467,7 +468,7 @@ func SetupRoutes(app *fiber.App) {
 		}
 
 		logs.GlobalLogs.Info("프리셋(프로필) 적용됨: " + p.Name)
-		return c.JSON(fiber.Map{"status": "적용됨"})
+		return c.JSON(response.Success(fiber.Map{"status": "적용됨"}))
 	})
 
 	// Logs
@@ -476,13 +477,13 @@ func SetupRoutes(app *fiber.App) {
 		if sinceStr != "" {
 			since, err := time.Parse(time.RFC3339, sinceStr)
 			if err == nil {
-				return c.JSON(logs.GlobalLogs.GetSince(since))
+				return c.JSON(response.Success(logs.GlobalLogs.GetSince(since)))
 			}
 		}
-		return c.JSON(logs.GlobalLogs.GetAll())
+		return c.JSON(response.Success(logs.GlobalLogs.GetAll()))
 	})
 	api.Delete("/logs", func(c *fiber.Ctx) error {
 		logs.GlobalLogs.Clear()
-		return c.JSON(fiber.Map{"status": "cleared"})
+		return c.JSON(response.Success(fiber.Map{"status": "cleared"}))
 	})
 }

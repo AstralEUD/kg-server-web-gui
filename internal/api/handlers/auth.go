@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"github.com/astral/kg-server-web-gui/internal/api/response"
 	"github.com/astral/kg-server-web-gui/internal/auth"
 	"github.com/gofiber/fiber/v2"
 )
@@ -21,12 +22,12 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	}
 
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "invalid request"})
+		return c.Status(400).JSON(response.Error("invalid request"))
 	}
 
 	user, err := h.users.Authenticate(req.Username, req.Password)
 	if err != nil {
-		return c.Status(401).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(401).JSON(response.Error(err.Error()))
 	}
 
 	session := h.sessions.Create(user)
@@ -41,11 +42,11 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		MaxAge:   86400, // 24 hours
 	})
 
-	return c.JSON(fiber.Map{
+	return c.JSON(response.Success(fiber.Map{
 		"token":    session.Token,
 		"username": user.Username,
 		"role":     user.Role,
-	})
+	}))
 }
 
 func (h *AuthHandler) Logout(c *fiber.Ctx) error {
@@ -59,15 +60,16 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 	}
 
 	c.ClearCookie("auth_token")
-	return c.JSON(fiber.Map{"status": "logged out"})
+	c.ClearCookie("auth_token")
+	return c.JSON(response.Success(fiber.Map{"status": "logged out"}))
 }
 
 func (h *AuthHandler) Me(c *fiber.Ctx) error {
-	return c.JSON(fiber.Map{
+	return c.JSON(response.Success(fiber.Map{
 		"userId":   c.Locals("userId"),
 		"username": c.Locals("username"),
 		"role":     c.Locals("role"),
-	})
+	}))
 }
 
 func (h *AuthHandler) ChangePassword(c *fiber.Ctx) error {
@@ -77,29 +79,29 @@ func (h *AuthHandler) ChangePassword(c *fiber.Ctx) error {
 	}
 
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "invalid request"})
+		return c.Status(400).JSON(response.Error("invalid request"))
 	}
 
 	userId, ok := c.Locals("userId").(string)
 	if !ok || userId == "" {
-		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+		return c.Status(401).JSON(response.Error("unauthorized"))
 	}
 	user := h.users.GetByID(userId)
 	if user == nil {
-		return c.Status(404).JSON(fiber.Map{"error": "user not found"})
+		return c.Status(404).JSON(response.Error("user not found"))
 	}
 
 	// Verify old password
 	_, err := h.users.Authenticate(user.Username, req.OldPassword)
 	if err != nil {
-		return c.Status(401).JSON(fiber.Map{"error": "incorrect current password"})
+		return c.Status(401).JSON(response.Error("incorrect current password"))
 	}
 
 	if err := h.users.ChangePassword(userId, req.NewPassword); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(500).JSON(response.Error(err.Error()))
 	}
 
-	return c.JSON(fiber.Map{"status": "password changed"})
+	return c.JSON(response.Success(fiber.Map{"status": "password changed"}))
 }
 
 // Admin endpoints
@@ -115,7 +117,7 @@ func (h *AuthHandler) ListUsers(c *fiber.Ctx) error {
 			"createdAt": u.CreatedAt,
 		})
 	}
-	return c.JSON(safeUsers)
+	return c.JSON(response.Success(safeUsers))
 }
 
 func (h *AuthHandler) CreateUser(c *fiber.Ctx) error {
@@ -126,7 +128,7 @@ func (h *AuthHandler) CreateUser(c *fiber.Ctx) error {
 	}
 
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "invalid request"})
+		return c.Status(400).JSON(response.Error("invalid request"))
 	}
 
 	if req.Role == "" {
@@ -135,14 +137,14 @@ func (h *AuthHandler) CreateUser(c *fiber.Ctx) error {
 
 	user, err := h.users.Create(req.Username, req.Password, req.Role)
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(400).JSON(response.Error(err.Error()))
 	}
 
-	return c.Status(201).JSON(fiber.Map{
+	return c.Status(201).JSON(response.Success(fiber.Map{
 		"id":       user.ID,
 		"username": user.Username,
 		"role":     user.Role,
-	})
+	}))
 }
 
 func (h *AuthHandler) DeleteUser(c *fiber.Ctx) error {
@@ -151,12 +153,12 @@ func (h *AuthHandler) DeleteUser(c *fiber.Ctx) error {
 	// Prevent self-deletion
 	currentUserId, _ := c.Locals("userId").(string)
 	if id == currentUserId {
-		return c.Status(400).JSON(fiber.Map{"error": "cannot delete yourself"})
+		return c.Status(400).JSON(response.Error("cannot delete yourself"))
 	}
 
 	if err := h.users.Delete(id); err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(404).JSON(response.Error(err.Error()))
 	}
 
-	return c.JSON(fiber.Map{"status": "deleted"})
+	return c.JSON(response.Success(fiber.Map{"status": "deleted"}))
 }

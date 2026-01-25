@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Play, Square, RefreshCw, Loader2, Download, Layers, ChevronRight } from "lucide-react"
 import Link from "next/link"
-import { apiFetch } from "@/lib/api"
+import { apiGet, apiPost } from "@/lib/api"
 import { toast } from "sonner"
 
 import LogViewer from '@/components/LogViewer'
@@ -30,49 +30,43 @@ export default function Dashboard() {
 
   const fetchStatus = async () => {
     try {
-      const res = await apiFetch(`/api/status?id=${serverId}`)
-      if (res.ok) {
-        const data = await res.json()
-        setStatus({ running: data.running, pid: data.pid })
-      }
-    } catch (e) { console.error('Status fetch error:', e) }
+      const data = await apiGet<{ running: boolean; pid: number }>(`/api/status?id=${serverId}`)
+      setStatus(data)
+    } catch (e) { setStatus({ running: false, pid: 0 }); console.error('Status fetch error:', e) }
   }
 
   const fetchPresets = async () => {
     try {
-      const res = await apiFetch("/api/presets")
-      if (res.ok) setPresets(await res.json() || [])
+      const data = await apiGet<any[]>("/api/presets")
+      setPresets(data || [])
     } catch (e) { console.error('Presets fetch error:', e) }
   }
 
   const applyPreset = async (id: string) => {
     if (!confirm("프리셋을 적용하시겠습니까?")) return
     try {
-      await apiFetch(`/api/presets/${id}/apply`, { method: "POST" })
+      await apiPost(`/api/presets/${id}/apply`)
       alert("적용되었습니다.")
     } catch (e) { console.error('Preset apply error:', e) }
   }
 
   const fetchSteamCMDStatus = async () => {
     try {
-      const res = await apiFetch("/api/steamcmd/status")
-      if (res.ok) setSteamcmdStatus(await res.json())
+      const data = await apiGet<any>("/api/steamcmd/status")
+      setSteamcmdStatus(data)
     } catch (e) { console.error('SteamCMD status error:', e) }
   }
 
   const fetchServers = async () => {
     try {
-      const res = await apiFetch("/api/servers")
-      if (res.ok) setServers(await res.json() || [])
+      const data = await apiGet<any[]>("/api/servers")
+      setServers(data || [])
     } catch (e) { console.error('Servers fetch error:', e) }
   }
 
   const handleDownloadServer = async () => {
     try {
-      await apiFetch("/api/steamcmd/download", {
-        method: "POST",
-        body: JSON.stringify({ experimental: false, serverId: serverId }),
-      })
+      await apiPost("/api/steamcmd/download", { experimental: false, serverId: serverId })
       alert("다운로드가 시작되었습니다.")
     } catch (e) { console.error('Download error:', e) }
   }
@@ -81,10 +75,7 @@ export default function Dashboard() {
   const handleAction = async (action: string) => {
     setLoading(true)
     try {
-      await apiFetch(`/api/servers/${serverId}/${action}`, {
-        method: "POST",
-        body: JSON.stringify({ args: [] }),
-      })
+      await apiPost(`/api/servers/${serverId}/${action}`, { args: [] })
       toast.success(`${action} 완료`)
     } catch (e) { toast.error(`${action} 실패`) }
     setLoading(false)
@@ -96,7 +87,7 @@ export default function Dashboard() {
     try {
       for (const s of servers) {
         if (s.status === "running") {
-          await apiFetch(`/api/servers/${s.id}/restart`, { method: "POST" })
+          await apiPost(`/api/servers/${s.id}/restart`)
         }
       }
       toast.success("모든 서버 재시작 명령이 전송되었습니다.")

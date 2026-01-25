@@ -249,9 +249,10 @@ func (im *InstanceManager) Start(id string, args []string) error {
 	serverExe := filepath.Join(inst.Path, "ArmaReforgerServer.exe")
 	logs.GlobalLogs.Info(fmt.Sprintf("[%s] 서버 시작 중: %s", inst.Name, serverExe))
 
-	// Register with Watchdog before starting
+	// Register with Watchdog before starting or resume
 	if im.watchdog != nil {
 		im.watchdog.RegisterInstance(id, serverExe, fullArgs, monitor)
+		im.watchdog.ResumeMonitoring(id)
 	}
 
 	if err := monitor.Start(serverExe, fullArgs); err != nil {
@@ -280,7 +281,8 @@ func (im *InstanceManager) ResolveServerArgs(id string, userArgs []string) []str
 
 	hasConfig := false
 	hasProfile := false
-	hasAddons := false
+	hasAddonDownload := false
+	hasAddonsDir := false
 	hasHeadless := false
 
 	for _, arg := range args {
@@ -290,7 +292,9 @@ func (im *InstanceManager) ResolveServerArgs(id string, userArgs []string) []str
 		case "-profile":
 			hasProfile = true
 		case "-addonDownloadDir":
-			hasAddons = true
+			hasAddonDownload = true
+		case "-addonsDir":
+			hasAddonsDir = true
 		case "-server":
 			hasHeadless = true
 		}
@@ -329,16 +333,23 @@ func (im *InstanceManager) ResolveServerArgs(id string, userArgs []string) []str
 	}
 
 	// 3. Addons Path
-	if !hasAddons {
-		addonPath := filepath.Join(workDir, "addons")
+	addonPath := ""
+	if !hasAddonDownload || !hasAddonsDir {
+		addonPath = filepath.Join(workDir, "addons")
 		if im.settingsMgr != nil {
 			s := im.settingsMgr.Get()
 			if s.AddonsPath != "" {
 				addonPath = s.AddonsPath
 			}
 		}
-		absAddons, _ := filepath.Abs(addonPath)
-		args = append(args, "-addonDownloadDir", absAddons)
+		addonPath, _ = filepath.Abs(addonPath)
+	}
+
+	if !hasAddonDownload {
+		args = append(args, "-addonDownloadDir", addonPath)
+	}
+	if !hasAddonsDir {
+		args = append(args, "-addonsDir", addonPath)
 	}
 
 	return args
@@ -360,36 +371,9 @@ func (im *InstanceManager) Stop(id string) error {
 
 	logs.GlobalLogs.Info(fmt.Sprintf("[%s] 서버 중지 중...", inst.Name))
 
-	// Disable watchdog temporarily if it's the active instance
-	// Ideally we should track which instance watchdog is watching, but for now we assume single active watchdog
+	// Pause Watchdog for this instance so it doesn't restart automatically
 	if im.watchdog != nil {
-		// Just stop monitoring? Or tell it "expected stop"
-		// If we set Enabled=false global, it stays false.
-		// We should probably rely on the watchdog check loop to see if we manually stopped it?
-		// But Watchdog checks IsRunning(). If we Stop(), IsRunning becomes false -> Watchdog triggers restart.
-		// So we MUST disable watchdog before stopping.
-		// But SetEnabled(false) is persistent...
-		// Refined Watchdog logic needed: "Pause" or "ExpectStop".
-		// For MVP, let's just SetEnabled(false) if enabled, and rely on user to re-enable?
-		// No, that's bad UX.
-		// Let's assume the user Stops the server intentinally.
-		// If Watchdog is enabled globally, we should maybe pause it?
-
-		// Simpler approach: If we stop via API, we acknowledge it.
-		// BUT Watchdog runs in background.
-		// Let's SetEnabled(false) here, and if the user Starts again, the UI/Settings should decide?
-		// No, Start() doesn't re-enable it.
-
-		// Let's hack: If manually stopping, user implies "I don't want it running".
-		// So disabling Watchdog is correct behavior for "Stop Server".
-		if im.watchdog.IsEnabled() {
-			logs.GlobalLogs.Info("Stopping server manually - Watchdog paused.")
-			im.watchdog.SetEnabled(false)
-			// NOTE: This will turn off the toggle in Settings UI if UI polls this state?
-			// We need to sync this state back to SettingsManager if we want persistence.
-			// But Watchdog struct has its own enabled state.
-			// Let's leave it as is: Manual Stop = Disable Watchdog.
-		}
+		im.watchdog.PauseMonitoring(id)
 	}
 
 	if err := monitor.Stop(); err != nil {

@@ -26,6 +26,11 @@ export const apiUrl = (path: string): string => {
 };
 
 // Common fetch wrapper with credentials
+import { ApiResponse } from '@/types/schema';
+
+// Helper to determine if we are in browser
+const isBrowser = typeof window !== 'undefined';
+
 export const apiFetch = async (path: string, options: RequestInit = {}): Promise<Response> => {
     return fetch(apiUrl(path), {
         ...options,
@@ -35,4 +40,75 @@ export const apiFetch = async (path: string, options: RequestInit = {}): Promise
             ...options.headers,
         },
     });
+};
+
+export class ApiError extends Error {
+    constructor(public message: string, public status?: number) {
+        super(message);
+        this.name = 'ApiError';
+    }
+}
+
+async function handleResponse<T>(res: Response): Promise<T> {
+    if (!res.ok) {
+        // Fix #Login: Handle 401 globally
+        if (res.status === 401 && isBrowser) {
+            // Redirect to login if not already there
+            if (!window.location.pathname.startsWith('/login')) {
+                window.location.href = '/login';
+            }
+        }
+
+        let errorMsg = res.statusText;
+        try {
+            const json = await res.json();
+            errorMsg = json.error || json.message || errorMsg;
+        } catch {
+            // ignore JSON parse error
+        }
+        throw new ApiError(errorMsg, res.status);
+    }
+
+    try {
+        const json = await res.json();
+        // Check for standardized ApiResponse
+        if (json && typeof json === 'object' && 'success' in json) {
+            const apiRes = json as ApiResponse<T>;
+            if (!apiRes.success) {
+                throw new ApiError(apiRes.error || 'Unknown API error');
+            }
+            return apiRes.data as T;
+        }
+        // Fallback for legacy endpoints
+        return json as T;
+    } catch (e) {
+        if (e instanceof ApiError) throw e;
+        throw new Error('Failed to parse API response');
+    }
+}
+
+export const apiGet = async <T>(path: string): Promise<T> => {
+    const res = await apiFetch(path);
+    return handleResponse<T>(res);
+};
+
+export const apiPost = async <T>(path: string, body?: any): Promise<T> => {
+    const res = await apiFetch(path, {
+        method: 'POST',
+        body: JSON.stringify(body),
+    });
+    return handleResponse<T>(res);
+};
+
+export const apiPut = async <T>(path: string, body?: any): Promise<T> => {
+    const res = await apiFetch(path, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+    });
+    return handleResponse<T>(res);
+};
+
+export const apiDelete = async <T>(path: string): Promise<T> => {
+    const res = await apiFetch(path, { method: 'DELETE' });
+    return handleResponse<T>(res);
 };

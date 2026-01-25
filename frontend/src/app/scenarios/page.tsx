@@ -55,9 +55,10 @@ export default function ScenariosPage() {
             const res = await apiFetch("/api/config")
             if (res.ok) {
                 const data = await res.json()
-                if (data.missionHeader) {
-                    setMissionHeader(data.missionHeader)
-                    setRawMissionHeader(JSON.stringify(data.missionHeader, null, 4))
+                const header = data.game?.gameProperties?.missionHeader
+                if (header) {
+                    setMissionHeader(header)
+                    setRawMissionHeader(JSON.stringify(header, null, 4))
                 }
             }
         } catch (e) {
@@ -83,8 +84,12 @@ export default function ScenariosPage() {
             if (!configRes.ok) throw new Error("Config load failed")
             const config = await configRes.json()
 
+            // Ensure nested paths exist
+            if (!config.game) config.game = {}
+            if (!config.game.gameProperties) config.game.gameProperties = {}
+
             // Update missionHeader
-            config.missionHeader = parsedHeader
+            config.game.gameProperties.missionHeader = parsedHeader
 
             // Save back
             await apiFetch("/api/config", {
@@ -116,14 +121,29 @@ export default function ScenariosPage() {
             if (!configRes.ok) throw new Error("Config load failed")
             const config = await configRes.json()
 
-            // Update scenarioId
+            // Ensure nested paths exist
+            if (!config.game) config.game = {}
+            if (!config.game.gameProperties) config.game.gameProperties = {}
+
+            // Update scenarioId (redundant but safe)
             config.game.scenarioId = id
+
+            // Update missionHeader mission (Primary for Reforger)
+            if (!config.game.gameProperties.missionHeader) {
+                config.game.gameProperties.missionHeader = {}
+            }
+            config.game.gameProperties.missionHeader.mission = id
 
             // Save back
             await apiFetch("/api/config", {
                 method: "POST",
                 body: JSON.stringify(config)
             })
+
+            // Update local state to reflect change immediately
+            setMissionHeader(prev => ({ ...prev, mission: id }))
+            setRawMissionHeader(JSON.stringify(config.game.gameProperties.missionHeader, null, 4))
+
             alert("서버 시나리오가 변경되었습니다.")
         } catch (e) {
             console.error(e)
