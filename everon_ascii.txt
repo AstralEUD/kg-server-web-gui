@@ -1,0 +1,31 @@
+
+SCRIPT       : {ECC61
+978EDCC2B5A}Missions/
+23_Campaign.conf (Con
+flict - Everon)
+SCRIPT       : {59AD5
+9368755F41A}Missions/
+21_GM_Eden.conf (Game
+ Master - Everon)
+SCRIPT       : {C700D
+B41F0C546E1}Missions/
+23_Campaign_NorthCent
+ral.conf (Conflict - 
+Northern Everon)
+SCRIPT       : {28802
+845ADA64D52}Missions/
+23_Campaign_SWCoast.c
+onf (Conflict - South
+ern Everon)
+SCRIPT       : {94992
+A3D7CE4FF8A}Missions/
+23_Campaign_Western.c
+onf (Conflict - Weste
+rn Everon)
+SCRIPT       : {DFAC5
+FABD11F2390}Missions/
+26_CombatOpsEveron.co
+nf (Combat Ops - Ever
+on)
+
+
