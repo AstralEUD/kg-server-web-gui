@@ -53,6 +53,11 @@ async function handleResponse<T>(res: Response): Promise<T> {
     if (!res.ok) {
         // Fix #Login: Handle 401 globally
         if (res.status === 401 && isBrowser) {
+            // Clear all auth data to prevent redirect loops
+            localStorage.removeItem("username");
+            localStorage.removeItem("role");
+            localStorage.removeItem("auth_token");
+
             // Redirect to login if not already there
             if (!window.location.pathname.startsWith('/login')) {
                 window.location.href = '/login';

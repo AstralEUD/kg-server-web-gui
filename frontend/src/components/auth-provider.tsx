@@ -14,13 +14,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     useEffect(() => {
         // Check if user is logged in
-        const token = localStorage.getItem("auth_token")
+        // Fix #Loop: auth_token is legacy (now using httpOnly cookie), so we rely on username as marker
         const username = localStorage.getItem("username")
+
+        // Clean up legacy token if present
+        if (localStorage.getItem("auth_token")) {
+            localStorage.removeItem("auth_token")
+        }
 
         // Public routes that don't require auth
         const publicRoutes = ["/login"]
 
-        if (!token || !username) {
+        if (!username) {
             if (!publicRoutes.includes(pathname)) {
                 setIsAuthenticated(false)
                 router.replace("/login")

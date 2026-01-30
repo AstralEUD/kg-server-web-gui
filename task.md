@@ -9,7 +9,13 @@
 - [ ] 워크샵 미션 불러오기 기능 개선
     - [ ] Workshop API 연동 부분 확인
     - [ ] 미션 선택 시 `scenarioId`가 올바르게 입력되는지 확인
-- [ ] 로그인 페이지 403 Forbidden 오류 수정
+- [x] 로그인 페이지 403 Forbidden 오류 수정
     - [x] 원인 파악 및 수정 (Next.js export 구조 vs Go Fiber filesystem 충돌 해결)
     - [x] `next.config.mjs`에 `trailingSlash: true` 적용
+    - [x] v3.1.5 릴리즈 완료
+- [x] 로그인 무한 리다이렉트 현상 디버깅
+    - [x] `frontend/src/components/auth-provider.tsx` 및 API 핸들러 분석
+    - [x] 401 에러 처리 및 로그인 상태 동기화 로직 수정
+
+
 
