@@ -48,13 +48,13 @@ func ListScenarios(serverPath string, addonDirs []string) ([]Scenario, error) {
 }
 
 func parseScenarios(output string, addonDirs []string) []Scenario {
-	// Vanilla Scenarios
+	// Vanilla Scenarios (Updated to match ArmaReforger.gproj GUID: 58D0FB3206B6F859)
 	vanilla := []Scenario{
-		{ID: "{59AD59368755F41A}Missions/21_GM_Eden.conf", Name: "Game Master: Everon"},
-		{ID: "{9002C691D8861B56}Missions/23_Campaign_North_Central.conf", Name: "Conflict: Arland"},
-		{ID: "{59AD59368755F41A}Missions/23_Campaign.conf", Name: "Conflict: Everon"},
-		{ID: "{59AD59368755F41A}Missions/CombatOps.conf", Name: "Combat Ops: Everon"},
-		{ID: "{9002C691D8861B56}Missions/CombatOps_Arland.conf", Name: "Combat Ops: Arland"},
+		{ID: "{58D0FB3206B6F859}Missions/21_GM_Eden.conf", Name: "Game Master: Everon"},
+		{ID: "{58D0FB3206B6F859}Missions/23_Campaign_North_Central.conf", Name: "Conflict: Arland"},
+		{ID: "{58D0FB3206B6F859}Missions/23_Campaign.conf", Name: "Conflict: Everon"},
+		{ID: "{58D0FB3206B6F859}Missions/CombatOps.conf", Name: "Combat Ops: Everon"},
+		{ID: "{58D0FB3206B6F859}Missions/CombatOps_Arland.conf", Name: "Combat Ops: Arland"},
 	}
 
 	scenariosMap := make(map[string]Scenario)
