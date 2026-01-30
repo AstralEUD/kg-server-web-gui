@@ -20,9 +20,16 @@
 - `cmd/server/main.go`: `Version` 상수를 `3.1.6`으로 업데이트.
 - **Git Release**: 변경사항 커밋 및 `v3.1.6` 태그 생성 후 원격 저장소 푸시 완료.
 
+### 4. 서버 구동 실패 수정 (시나리오 Mod 누락) (Hotfix)
+- **증상**: 시나리오 선택 후 서버 시작 시 `MissionHeader::ReadMissionHeader cannot read mission file` 에러 발생.
+- **원인**: 프론트엔드에서 시나리오를 적용할 때, 해당 시나리오를 제공하는 Mod가 `server.json`의 `mods` 목록에 자동으로 추가되지 않아 엔진이 미션 파일을 찾지 못함.
+- **해결**:
+    - `scenarios/page.tsx`: 시나리오 적용(`applyScenario`) 시 해당 시나리오의 `modId`를 확인하고, `mods` 목록에 없으면 자동으로 추가하는 로직 구현.
+
 ## 검증 결과
 - **설정 변경**: `trailingSlash: true` 적용 확인.
 - **Hotfix 적용**: `api.ts` 및 `auth-provider.tsx` 수정 완료.
+- **Scenario Fix**: `scenarios/page.tsx` 로직 수정 완료.
 - **Git Push**: `main` 브랜치 및 `v3.1.6` 태그 푸시 성공.
 
 ## 다음 단계

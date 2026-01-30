@@ -15,6 +15,7 @@ interface Scenario {
     scenarioId: string
     name: string
     imageUrl?: string
+    modId?: string
 }
 
 interface MissionHeader {
@@ -103,19 +104,37 @@ export default function ScenariosPage() {
             if (!config.game) config.game = {}
             if (!config.game.gameProperties) config.game.gameProperties = {}
 
+            // 1. Set Scenario ID
             config.game.scenarioId = id
 
+            // 2. Set Mission Header
             if (!config.game.gameProperties.missionHeader) {
                 config.game.gameProperties.missionHeader = {}
             }
             config.game.gameProperties.missionHeader.mission = id
+
+            // 3. Auto-add Mod if required
+            const selectedScenario = scenarios.find(s => s.scenarioId === id)
+            if (selectedScenario?.modId) {
+                if (!config.game.mods) config.game.mods = []
+                
+                const modExists = config.game.mods.some((m: any) => m.modId === selectedScenario.modId)
+                if (!modExists) {
+                    config.game.mods.push({
+                        modId: selectedScenario.modId,
+                        name: selectedScenario.name, // Use scenario name as fallback/reference
+                        version: "" // Optional
+                    })
+                    // Note: We might want to alert the user, but for now just auto-add
+                }
+            }
 
             await apiPost("/api/config", config)
 
             setMissionHeader(prev => ({ ...prev, mission: id }))
             setRawMissionHeader(JSON.stringify(config.game.gameProperties.missionHeader, null, 4))
 
-            alert("서버 시나리오가 변경되었습니다.")
+            alert("서버 시나리오가 변경되었습니다. (필요 시 모드가 자동 추가되었습니다)")
         } catch (e) {
             console.error(e)
             alert("변경 실패")
